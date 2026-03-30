@@ -101,7 +101,7 @@ function ExpenseFormModal({
   const [form, setForm] = useState<ExpenseFormData>({
     title: '', amount: '', currency: tripCurrency, exchange_rate: '1',
     paid_by: tripMembers[0]?.id ?? null, paid_by_name: null, category: 'Sonstiges',
-    expense_date: '', note: '', split_type: 'equal',
+    expense_date: new Date().toISOString().slice(0, 10), note: '', split_type: 'equal',
     participant_ids: tripMembers.map(m => m.id), share_values: {},
   })
   const [saving, setSaving] = useState(false)
@@ -134,7 +134,7 @@ function ExpenseFormModal({
       setForm({
         title: '', amount: '', currency: tripCurrency, exchange_rate: '1',
         paid_by: tripMembers[0]?.id ?? null, paid_by_name: null, category: 'Sonstiges',
-        expense_date: '', note: '', split_type: 'equal',
+        expense_date: new Date().toISOString().slice(0, 10), note: '', split_type: 'equal',
         participant_ids: tripMembers.map(m => m.id), share_values: {},
       })
     }
@@ -213,7 +213,7 @@ function ExpenseFormModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={expense ? t('kosten.editExpense') : t('kosten.addExpense')} size="lg" footer={footerButtons}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {/* Title */}
         <div>
           <label style={labelStyle}>{t('kosten.expenseTitle')} *</label>
@@ -364,7 +364,7 @@ function ExpenseFormModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div>
             <label style={labelStyle}>{t('kosten.date')}</label>
-            <input style={inputStyle} type="date" value={form.expense_date} onChange={e => setField('expense_date', e.target.value)} />
+            <input style={{ ...inputStyle, textAlign: 'left' }} type="date" value={form.expense_date} onChange={e => setField('expense_date', e.target.value)} />
           </div>
           <div>
             <label style={labelStyle}>{t('kosten.note')}</label>
@@ -432,6 +432,15 @@ function ExpenseFormModal({
                 </div>
               )
             })}
+            {/* External (non-registered) payer row — read-only, shows who paid */}
+            {form.paid_by_name && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border-faint)', opacity: 0.8 }}>
+                <div style={{ width: 18, height: 18, borderRadius: 4, border: '2px solid var(--border-faint)', background: 'transparent', flexShrink: 0 }} />
+                <AvatarChip username={form.paid_by_name} avatarUrl={null} size={24} />
+                <span style={{ flex: 1, fontSize: 13, color: 'var(--text-primary)' }}>{form.paid_by_name}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>{t('kosten.paidBy')}</span>
+              </div>
+            )}
           </div>
           {form.split_type === 'unequal_percent' && (
             <div style={{ fontSize: 12, marginTop: 6, color: Math.abs(percentSum - 100) < 0.5 ? '#10b981' : '#ef4444' }}>
@@ -448,7 +457,9 @@ function ExpenseFormModal({
 
 interface SettlementFormData {
   from_user_id: number | null
+  from_name: string | null
   to_user_id: number | null
+  to_name: string | null
   amount: string
   currency: string
   exchange_rate: string
@@ -456,7 +467,7 @@ interface SettlementFormData {
 }
 
 function SettlementFormModal({
-  isOpen, onClose, onSave, tripMembers, tripId, tripCurrency, prefill, locale,
+  isOpen, onClose, onSave, tripMembers, tripId, tripCurrency, prefill, locale, customPayers,
 }: {
   isOpen: boolean
   onClose: () => void
@@ -466,11 +477,14 @@ function SettlementFormModal({
   tripCurrency: string
   prefill?: { from_user_id: number; to_user_id: number; amount: number } | null
   locale: string
+  customPayers: string[]
 }) {
   const { t } = useTranslation()
   const [form, setForm] = useState<SettlementFormData>({
     from_user_id: tripMembers[0]?.id ?? null,
+    from_name: null,
     to_user_id: tripMembers[1]?.id ?? null,
+    to_name: null,
     amount: '', currency: tripCurrency, exchange_rate: '1', note: '',
   })
   const [saving, setSaving] = useState(false)
@@ -488,7 +502,7 @@ function SettlementFormModal({
         exchange_rate: '1',
       }))
     } else {
-      setForm({ from_user_id: tripMembers[0]?.id ?? null, to_user_id: tripMembers[1]?.id ?? null, amount: '', currency: tripCurrency, exchange_rate: '1', note: '' })
+      setForm({ from_user_id: tripMembers[0]?.id ?? null, from_name: null, to_user_id: tripMembers[1]?.id ?? null, to_name: null, amount: '', currency: tripCurrency, exchange_rate: '1', note: '' })
     }
   }, [isOpen, prefill, tripMembers, tripCurrency])
 
@@ -510,7 +524,7 @@ function SettlementFormModal({
   }, [form.currency, tripCurrency, isOpen])
 
   const handleSave = async () => {
-    if (!form.from_user_id || !form.to_user_id || !form.amount) return
+    if ((!form.from_user_id && !form.from_name) || (!form.to_user_id && !form.to_name) || !form.amount) return
     setSaving(true)
     try { await onSave(form) } finally { setSaving(false) }
   }
@@ -523,7 +537,7 @@ function SettlementFormModal({
       <button onClick={onClose} style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid var(--border-primary)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
         {t('common.cancel')}
       </button>
-      <button onClick={handleSave} disabled={!form.from_user_id || !form.to_user_id || !form.amount || saving} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, opacity: (!form.from_user_id || !form.to_user_id || !form.amount || saving) ? 0.5 : 1 }}>
+      <button onClick={handleSave} disabled={(!form.from_user_id && !form.from_name) || (!form.to_user_id && !form.to_name) || !form.amount || saving} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, opacity: ((!form.from_user_id && !form.from_name) || (!form.to_user_id && !form.to_name) || !form.amount || saving) ? 0.5 : 1 }}>
         {saving ? t('common.saving') : t('common.save')}
       </button>
     </div>
@@ -535,14 +549,32 @@ function SettlementFormModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div>
             <label style={labelStyle}>{t('kosten.fromUser')}</label>
-            <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.from_user_id ?? ''} onChange={e => setForm(f => ({ ...f, from_user_id: Number(e.target.value) }))}>
-              {tripMembers.map(m => <option key={m.id} value={m.id}>{m.username}</option>)}
+            <select
+              style={{ ...inputStyle, cursor: 'pointer' }}
+              value={payerOptionKey(form.from_user_id, form.from_name)}
+              onChange={e => {
+                const val = e.target.value
+                if (val.startsWith('u:')) setForm(f => ({ ...f, from_user_id: Number(val.slice(2)), from_name: null }))
+                else if (val.startsWith('c:')) setForm(f => ({ ...f, from_user_id: null, from_name: val.slice(2) }))
+              }}
+            >
+              {tripMembers.map(m => <option key={`u:${m.id}`} value={`u:${m.id}`}>{m.username}</option>)}
+              {customPayers.map(name => <option key={`c:${name}`} value={`c:${name}`}>{name}</option>)}
             </select>
           </div>
           <div>
             <label style={labelStyle}>{t('kosten.toUser')}</label>
-            <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.to_user_id ?? ''} onChange={e => setForm(f => ({ ...f, to_user_id: Number(e.target.value) }))}>
-              {tripMembers.map(m => <option key={m.id} value={m.id}>{m.username}</option>)}
+            <select
+              style={{ ...inputStyle, cursor: 'pointer' }}
+              value={payerOptionKey(form.to_user_id, form.to_name)}
+              onChange={e => {
+                const val = e.target.value
+                if (val.startsWith('u:')) setForm(f => ({ ...f, to_user_id: Number(val.slice(2)), to_name: null }))
+                else if (val.startsWith('c:')) setForm(f => ({ ...f, to_user_id: null, to_name: val.slice(2) }))
+              }}
+            >
+              {tripMembers.map(m => <option key={`u:${m.id}`} value={`u:${m.id}`}>{m.username}</option>)}
+              {customPayers.map(name => <option key={`c:${name}`} value={`c:${name}`}>{name}</option>)}
             </select>
           </div>
         </div>
@@ -804,7 +836,9 @@ export default function KostenPanel({ tripId, tripTitle = '', tripMembers, tripC
     const parsedRate = parseFloat(form.exchange_rate.replace(',', '.')) || 1
     await kostenApi.createSettlement(tripId, {
       from_user_id: form.from_user_id,
+      from_name: form.from_name || null,
       to_user_id: form.to_user_id,
+      to_name: form.to_name || null,
       amount: parseFloat(form.amount.replace(',', '.')),
       currency: form.currency,
       exchange_rate: parsedRate,
@@ -904,6 +938,28 @@ export default function KostenPanel({ tripId, tripTitle = '', tripMembers, tripC
             </button>
           </div>
         </div>
+
+        {/* Mobile stats strip — visible below lg where sidebar is hidden */}
+        {expenses.length > 0 && (
+          <div className="flex lg:hidden gap-2 overflow-x-auto mb-4" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
+            <div style={{ flexShrink: 0, padding: '10px 14px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border-faint)' }}>
+              <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 3 }}>{t('kosten.totalSpent')}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>{fmtAmt(totalSpent, tripCurrency, locale)}</div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>{expenses.length} {t('kosten.tabExpenses').toLowerCase()}</div>
+            </div>
+            {balances.map(b => (
+              <div key={b.user_id} style={{ flexShrink: 0, padding: '10px 14px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border-faint)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <AvatarChip username={b.username} avatarUrl={b.avatar_url} size={20} />
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{b.username}</span>
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: b.balance >= 0 ? '#10b981' : '#ef4444' }}>
+                  {b.balance >= 0 ? '+' : ''}{fmtAmt(b.balance, tripCurrency, locale)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Tab bar */}
         <div style={{ display: 'flex', gap: 2, marginBottom: 16, background: 'var(--bg-secondary)', borderRadius: 10, padding: 3, width: 'fit-content' }}>
@@ -1125,6 +1181,7 @@ export default function KostenPanel({ tripId, tripTitle = '', tripMembers, tripC
         tripCurrency={tripCurrency}
         prefill={settlementPrefill}
         locale={locale}
+        customPayers={customPayers}
       />
 
       <ConfirmDialog

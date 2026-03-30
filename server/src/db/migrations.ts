@@ -397,6 +397,33 @@ function runMigrations(db: Database.Database): void {
     },
   ];
 
+    () => {
+      // Make kosten_settlements from/to user IDs nullable + add name fields for external (non-registered) payers
+      db.exec('PRAGMA foreign_keys = OFF');
+      db.exec(`
+        CREATE TABLE kosten_settlements_v2 (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          trip_id INTEGER NOT NULL,
+          from_user_id INTEGER,
+          from_name TEXT,
+          to_user_id INTEGER,
+          to_name TEXT,
+          amount REAL NOT NULL DEFAULT 0,
+          currency TEXT NOT NULL DEFAULT 'EUR',
+          exchange_rate REAL NOT NULL DEFAULT 1,
+          note TEXT,
+          settled_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        INSERT INTO kosten_settlements_v2 (id, trip_id, from_user_id, from_name, to_user_id, to_name, amount, currency, exchange_rate, note, settled_at)
+          SELECT id, trip_id, from_user_id, NULL, to_user_id, NULL, amount, currency, exchange_rate, note, settled_at FROM kosten_settlements;
+        DROP TABLE kosten_settlements;
+        ALTER TABLE kosten_settlements_v2 RENAME TO kosten_settlements;
+        CREATE INDEX IF NOT EXISTS idx_kosten_settlements_trip ON kosten_settlements(trip_id);
+      `);
+      db.exec('PRAGMA foreign_keys = ON');
+    },
+  ];
+
   if (currentVersion < migrations.length) {
     for (let i = currentVersion; i < migrations.length; i++) {
       console.log(`[DB] Running migration ${i + 1}/${migrations.length}`);

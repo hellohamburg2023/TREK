@@ -146,10 +146,12 @@ export interface KostenExpense {
 export interface KostenSettlement {
   id: number
   trip_id: number
-  from_user_id: number
+  from_user_id: number | null
+  from_name: string | null
   from_username: string
   from_avatar_url: string | null
-  to_user_id: number
+  to_user_id: number | null
+  to_name: string | null
   to_username: string
   to_avatar_url: string | null
   amount: number

@@ -313,11 +313,12 @@ router.get('/settlements', authenticate, (req: Request, res: Response) => {
   if (!canAccessTrip(tripId, authReq.user.id)) return res.status(404).json({ error: 'Trip not found' });
 
   const settlements = db.prepare(`
-    SELECT ks.*, uf.username as from_username, uf.avatar as from_avatar,
-      ut.username as to_username, ut.avatar as to_avatar
+    SELECT ks.*,
+      COALESCE(ks.from_name, uf.username) as from_username, uf.avatar as from_avatar,
+      COALESCE(ks.to_name, ut.username) as to_username, ut.avatar as to_avatar
     FROM kosten_settlements ks
-    JOIN users uf ON ks.from_user_id = uf.id
-    JOIN users ut ON ks.to_user_id = ut.id
+    LEFT JOIN users uf ON ks.from_user_id = uf.id
+    LEFT JOIN users ut ON ks.to_user_id = ut.id
     WHERE ks.trip_id = ? ORDER BY ks.settled_at DESC
   `).all(tripId) as any[];
 
@@ -336,25 +337,26 @@ router.post('/settlements', authenticate, (req: Request, res: Response) => {
   const { tripId } = req.params;
   if (!canAccessTrip(tripId, authReq.user.id)) return res.status(404).json({ error: 'Trip not found' });
 
-  const { from_user_id, to_user_id, amount, currency, exchange_rate = 1, note } = req.body;
-  if (!from_user_id || !to_user_id || amount === undefined || amount === null) {
-    return res.status(400).json({ error: 'from_user_id, to_user_id, and amount are required' });
+  const { from_user_id, from_name, to_user_id, to_name, amount, currency, exchange_rate = 1, note } = req.body;
+  if ((!from_user_id && !from_name) || (!to_user_id && !to_name) || amount === undefined || amount === null) {
+    return res.status(400).json({ error: 'from (user_id or name), to (user_id or name), and amount are required' });
   }
 
   const trip = db.prepare('SELECT currency FROM trips WHERE id = ?').get(tripId) as { currency: string } | undefined;
   const tripCurrency = trip?.currency || 'EUR';
 
   const result = db.prepare(`
-    INSERT INTO kosten_settlements (trip_id, from_user_id, to_user_id, amount, currency, exchange_rate, note)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(tripId, Number(from_user_id), Number(to_user_id), Number(amount), currency || tripCurrency, Number(exchange_rate), note || null);
+    INSERT INTO kosten_settlements (trip_id, from_user_id, from_name, to_user_id, to_name, amount, currency, exchange_rate, note)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(tripId, from_user_id ? Number(from_user_id) : null, from_name || null, to_user_id ? Number(to_user_id) : null, to_name || null, Number(amount), currency || tripCurrency, Number(exchange_rate), note || null);
 
   const settlement = db.prepare(`
-    SELECT ks.*, uf.username as from_username, uf.avatar as from_avatar,
-      ut.username as to_username, ut.avatar as to_avatar
+    SELECT ks.*,
+      COALESCE(ks.from_name, uf.username) as from_username, uf.avatar as from_avatar,
+      COALESCE(ks.to_name, ut.username) as to_username, ut.avatar as to_avatar
     FROM kosten_settlements ks
-    JOIN users uf ON ks.from_user_id = uf.id
-    JOIN users ut ON ks.to_user_id = ut.id
+    LEFT JOIN users uf ON ks.from_user_id = uf.id
+    LEFT JOIN users ut ON ks.to_user_id = ut.id
     WHERE ks.id = ?
   `).get(result.lastInsertRowid) as any;
 

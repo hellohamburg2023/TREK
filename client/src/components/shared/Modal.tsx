@@ -60,7 +60,7 @@ export default function Modal({
       <div
         className={`
           rounded-2xl shadow-2xl w-full ${sizeClasses[size] || sizeClasses.md}
-          flex flex-col max-h-[calc(100vh-90px)]
+          flex flex-col max-h-[calc(100dvh-90px)]
           animate-in fade-in zoom-in-95 duration-200
         `}
         style={{
@@ -70,7 +70,7 @@ export default function Modal({
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6" style={{ borderBottom: '1px solid var(--border-secondary)' }}>
+        <div className="flex items-center justify-between p-4 sm:p-6" style={{ borderBottom: '1px solid var(--border-secondary)' }}>
           <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h2>
           {!hideCloseButton && (
             <button
@@ -83,13 +83,13 @@ export default function Modal({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           {children}
         </div>
 
         {/* Footer */}
         {footer && (
-          <div className="p-6" style={{ borderTop: '1px solid var(--border-secondary)' }}>
+          <div className="px-4 py-3 sm:p-6" style={{ borderTop: '1px solid var(--border-secondary)' }}>
             {footer}
           </div>
         )}
