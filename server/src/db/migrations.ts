@@ -395,8 +395,6 @@ function runMigrations(db: Database.Database): void {
       `);
       db.exec('PRAGMA foreign_keys = ON');
     },
-  ];
-
     () => {
       // Make kosten_settlements from/to user IDs nullable + add name fields for external (non-registered) payers
       db.exec('PRAGMA foreign_keys = OFF');
