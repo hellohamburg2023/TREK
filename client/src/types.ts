@@ -21,6 +21,7 @@ export interface Trip {
   cover_url: string | null
   is_archived: boolean
   owner_id: number
+  currency?: string
   created_at: string
   updated_at: string
 }
@@ -111,6 +112,67 @@ export interface BudgetItem {
 export interface BudgetMember {
   user_id: number
   paid: boolean
+}
+
+// ── Kosten (expense splitting) ────────────────────────────────────────────────
+
+export interface KostenShare {
+  user_id: number
+  share_value: number | null
+  username: string
+  avatar_url: string | null
+}
+
+export interface KostenExpense {
+  id: number
+  trip_id: number
+  title: string
+  amount: number
+  currency: string
+  exchange_rate: number
+  paid_by: number
+  paid_by_username: string
+  paid_by_avatar_url: string | null
+  category: string
+  expense_date: string | null
+  note: string | null
+  split_type: 'equal' | 'unequal_amount' | 'unequal_percent'
+  sort_order: number
+  created_at: string
+  shares: KostenShare[]
+}
+
+export interface KostenSettlement {
+  id: number
+  trip_id: number
+  from_user_id: number
+  from_username: string
+  from_avatar_url: string | null
+  to_user_id: number
+  to_username: string
+  to_avatar_url: string | null
+  amount: number
+  currency: string
+  exchange_rate: number
+  note: string | null
+  settled_at: string
+}
+
+export interface KostenBalance {
+  user_id: number
+  username: string
+  avatar_url: string | null
+  balance: number
+}
+
+export interface KostenDebt {
+  from_user_id: number
+  from_username: string
+  from_avatar_url: string | null
+  to_user_id: number
+  to_username: string
+  to_avatar_url: string | null
+  amount: number
 }
 
 export interface Reservation {
