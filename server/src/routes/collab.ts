@@ -32,7 +32,7 @@ interface NoteFileRow {
 }
 
 const MAX_NOTE_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
-const filesDir = path.join(__dirname, '../../uploads/files');
+const filesDir = path.join(__dirname, '../../data/uploads/files');
 const noteUpload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => { if (!fs.existsSync(filesDir)) fs.mkdirSync(filesDir, { recursive: true }); cb(null, filesDir) },
@@ -175,7 +175,7 @@ router.delete('/notes/:id', authenticate, (req: Request, res: Response) => {
 
   const noteFiles = db.prepare('SELECT id, filename FROM trip_files WHERE note_id = ?').all(id) as NoteFileRow[];
   for (const f of noteFiles) {
-    const filePath = path.join(__dirname, '../../uploads', f.filename);
+    const filePath = path.join(__dirname, '../../data/uploads', f.filename);
     try { fs.unlinkSync(filePath) } catch {}
   }
   db.prepare('DELETE FROM trip_files WHERE note_id = ?').run(id);
@@ -211,7 +211,7 @@ router.delete('/notes/:id/files/:fileId', authenticate, (req: Request, res: Resp
   const file = db.prepare('SELECT * FROM trip_files WHERE id = ? AND note_id = ?').get(fileId, id) as TripFile | undefined;
   if (!file) return res.status(404).json({ error: 'File not found' });
 
-  const filePath = path.join(__dirname, '../../uploads', file.filename);
+  const filePath = path.join(__dirname, '../../data/uploads', file.filename);
   try { fs.unlinkSync(filePath) } catch {}
 
   db.prepare('DELETE FROM trip_files WHERE id = ?').run(fileId);

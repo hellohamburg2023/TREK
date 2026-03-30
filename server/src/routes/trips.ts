@@ -14,7 +14,7 @@ const MS_PER_DAY = 86400000;
 const MAX_TRIP_DAYS = 90;
 const MAX_COVER_SIZE = 20 * 1024 * 1024; // 20 MB
 
-const coversDir = path.join(__dirname, '../../uploads/covers');
+const coversDir = path.join(__dirname, '../../data/uploads/covers');
 const coverStorage = multer.diskStorage({
   destination: (_req, _file, cb) => {
     if (!fs.existsSync(coversDir)) fs.mkdirSync(coversDir, { recursive: true });
@@ -213,7 +213,7 @@ router.post('/:id/cover', authenticate, demoUploadBlock, uploadCover.single('cov
   if (trip.cover_image) {
     const oldPath = path.join(__dirname, '../../', trip.cover_image.replace(/^\//, ''));
     const resolvedPath = path.resolve(oldPath);
-    const uploadsDir = path.resolve(__dirname, '../../uploads');
+    const uploadsDir = path.resolve(__dirname, '../../data/uploads');
     if (resolvedPath.startsWith(uploadsDir) && fs.existsSync(resolvedPath)) {
       fs.unlinkSync(resolvedPath);
     }

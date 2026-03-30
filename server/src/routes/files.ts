@@ -12,7 +12,7 @@ import { AuthRequest, TripFile } from '../types';
 const router = express.Router({ mergeParams: true });
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
-const filesDir = path.join(__dirname, '../../uploads/files');
+const filesDir = path.join(__dirname, '../../data/uploads/files');
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {

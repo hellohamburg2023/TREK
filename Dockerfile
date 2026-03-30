@@ -27,8 +27,8 @@ COPY --from=client-builder /app/client/dist ./public
 COPY --from=client-builder /app/client/public/fonts ./public/fonts
 
 # Verzeichnisse erstellen + Symlink für Abwärtskompatibilität (alte docker-compose mounten nach /app/server/uploads)
-RUN mkdir -p /app/data /app/uploads/files /app/uploads/covers /app/uploads/avatars /app/uploads/photos && \
-    mkdir -p /app/server && ln -s /app/uploads /app/server/uploads && ln -s /app/data /app/server/data
+RUN mkdir -p /app/data/uploads/files /app/data/uploads/covers /app/data/uploads/avatars /app/data/uploads/photos && \
+    mkdir -p /app/server && ln -s /app/data/uploads /app/server/uploads && ln -s /app/data /app/server/data
 
 # Umgebung setzen
 ENV NODE_ENV=production

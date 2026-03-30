@@ -35,7 +35,7 @@ function backupRateLimiter(maxAttempts: number, windowMs: number) {
 
 const dataDir = path.join(__dirname, '../../data');
 const backupsDir = path.join(dataDir, 'backups');
-const uploadsDir = path.join(__dirname, '../../uploads');
+const uploadsDir = path.join(__dirname, '../../data/uploads');
 
 function ensureBackupsDir() {
   if (!fs.existsSync(backupsDir)) fs.mkdirSync(backupsDir, { recursive: true });

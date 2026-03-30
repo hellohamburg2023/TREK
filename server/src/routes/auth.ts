@@ -45,7 +45,7 @@ function stripUserForClient(user: User): Record<string, unknown> {
 
 const router = express.Router();
 
-const avatarDir = path.join(__dirname, '../../uploads/avatars');
+const avatarDir = path.join(__dirname, '../../data/uploads/avatars');
 if (!fs.existsSync(avatarDir)) fs.mkdirSync(avatarDir, { recursive: true });
 
 const avatarStorage = multer.diskStorage({

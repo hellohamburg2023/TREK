@@ -13,7 +13,7 @@ if (process.env.NODE_ENV === 'production' || process.env.TRUST_PROXY) {
 }
 
 // Create upload directories on startup
-const uploadsDir = path.join(__dirname, '../uploads');
+const uploadsDir = path.join(__dirname, '../data/uploads');
 const photosDir = path.join(uploadsDir, 'photos');
 const filesDir = path.join(uploadsDir, 'files');
 const coversDir = path.join(uploadsDir, 'covers');
@@ -80,7 +80,7 @@ app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Avatars are public (shown on login, sharing screens)
-app.use('/uploads/avatars', express.static(path.join(__dirname, '../uploads/avatars')));
+app.use('/uploads/avatars', express.static(path.join(__dirname, '../data/uploads/avatars')));
 
 // All other uploads require authentication
 app.get('/uploads/:type/:filename', (req: Request, res: Response) => {
@@ -90,9 +90,9 @@ app.get('/uploads/:type/:filename', (req: Request, res: Response) => {
 
   // Prevent path traversal
   const safeName = path.basename(filename);
-  const filePath = path.join(__dirname, '../uploads', type, safeName);
+  const filePath = path.join(__dirname, '../data/uploads', type, safeName);
   const resolved = path.resolve(filePath);
-  if (!resolved.startsWith(path.resolve(__dirname, '../uploads', type))) {
+  if (!resolved.startsWith(path.resolve(__dirname, '../data/uploads', type))) {
     return res.status(403).send('Forbidden');
   }
 

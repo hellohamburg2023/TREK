@@ -5,7 +5,7 @@ import fs from 'fs';
 
 const dataDir = path.join(__dirname, '../data');
 const backupsDir = path.join(dataDir, 'backups');
-const uploadsDir = path.join(__dirname, '../uploads');
+const uploadsDir = path.join(__dirname, '../data/uploads');
 const settingsFile = path.join(dataDir, 'backup-settings.json');
 
 const CRON_EXPRESSIONS: Record<string, string> = {
