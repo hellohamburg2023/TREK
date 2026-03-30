@@ -68,6 +68,9 @@ function formatFile(file: TripFile) {
   return {
     ...file,
     url: file.filename?.startsWith('files/') ? `/uploads/${file.filename}` : `/uploads/files/${file.filename}`,
+    uploaded_by_avatar: (file as any).uploaded_by_avatar
+      ? `/uploads/avatars/${(file as any).uploaded_by_avatar}`
+      : null,
   };
 }
 
