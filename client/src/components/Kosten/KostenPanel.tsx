@@ -983,26 +983,28 @@ export default function KostenPanel({ tripId, tripTitle = '', tripMembers, tripC
       {/* ── Main content ───────────────────────────────────────────────────── */}
       <div style={{ flex: 1, minWidth: 0, padding: '16px 16px 16px 16px', overflowY: 'auto' }}>
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Receipt size={18} style={{ color: 'var(--text-primary)' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Receipt size={18} style={{ color: 'var(--text-primary)' }} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Kosten</h1>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>{t('kosten.subtitle')}</p>
+            </div>
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Kosten</h1>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>{t('kosten.subtitle')}</p>
-          </div>
-          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-            <button
-              onClick={() => exportPDF(expenses, settlements, balances, debts, tripCurrency, locale, tripTitle, t)}
-              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border-primary)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
-            >
-              <FileDown size={13} /> {t('kosten.pdfExport')}
-            </button>
+          <div style={{ display: 'flex', gap: 6 }}>
             <button
               onClick={() => { setEditingExpense(null); setShowExpenseForm(true) }}
               style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}
             >
               <Plus size={15} /> {t('kosten.addExpense')}
+            </button>
+            <button
+              onClick={() => exportPDF(expenses, settlements, balances, debts, tripCurrency, locale, tripTitle, t)}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border-primary)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              <FileDown size={13} /> {t('kosten.pdfExport')}
             </button>
           </div>
         </div>
@@ -1131,19 +1133,23 @@ export default function KostenPanel({ tripId, tripTitle = '', tripMembers, tripC
                 <h2 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 10px', color: 'var(--text-primary)' }}>{t('kosten.simplifiedDebts')}</h2>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {debts.map((d, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--border-faint)' }}>
-                      <AvatarChip username={d.from_username} avatarUrl={d.from_avatar_url} size={28} />
-                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{d.from_username}</span>
-                      <ArrowRight size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                      <AvatarChip username={d.to_username} avatarUrl={d.to_avatar_url} size={28} />
-                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500, flex: 1 }}>{d.to_username}</span>
-                      <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginRight: 8 }}>{fmtAmt(d.amount, tripCurrency, locale)}</span>
-                      <button
-                        onClick={() => { setSettlementPrefill({ from_user_id: d.from_user_id, from_name: d.from_name, to_user_id: d.to_user_id, to_name: d.to_name, amount: d.amount }); setShowSettlementForm(true) }}
-                        style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--accent)', background: 'transparent', color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
-                      >
-                        {t('kosten.settleUp')}
-                      </button>
+                    <div key={i} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '10px 14px', padding: '10px 14px', borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--border-faint)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '1 1 auto', minWidth: 0 }}>
+                        <AvatarChip username={d.from_username} avatarUrl={d.from_avatar_url} size={28} />
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.from_username}</span>
+                        <ArrowRight size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                        <AvatarChip username={d.to_username} avatarUrl={d.to_avatar_url} size={28} />
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.to_username}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{fmtAmt(d.amount, tripCurrency, locale)}</span>
+                        <button
+                          onClick={() => { setSettlementPrefill({ from_user_id: d.from_user_id, from_name: d.from_name, to_user_id: d.to_user_id, to_name: d.to_name, amount: d.amount }); setShowSettlementForm(true) }}
+                          style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--accent)', background: 'transparent', color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}
+                        >
+                          {t('kosten.settleUp')}
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
