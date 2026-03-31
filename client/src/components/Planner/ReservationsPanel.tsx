@@ -120,14 +120,31 @@ function ReservationCard({ r, tripId, onEdit, onDelete, files = [], onNavigateTo
               {r.reservation_time && (
                 <div style={{ flex: 1, padding: '5px 10px', textAlign: 'center', borderRight: '1px solid var(--border-faint)' }}>
                   <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('reservations.date')}</div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginTop: 1 }}>{fmtDate(r.reservation_time)}</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginTop: 1 }}>
+                    {fmtDate(r.reservation_time)}
+                    {(() => {
+                      if (!r.reservation_end_time) return ''
+                      const p = r.reservation_end_time.split('T')
+                      if (p[0] && p[0].includes('-')) {
+                        const ed = fmtDate(p[0])
+                        return ed !== fmtDate(r.reservation_time) ? ` – ${ed}` : ''
+                      }
+                      return ''
+                    })()}
+                  </div>
                 </div>
               )}
               {r.reservation_time?.includes('T') && (
                 <div style={{ flex: 1, padding: '5px 10px', textAlign: 'center', borderRight: '1px solid var(--border-faint)' }}>
                   <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('reservations.time')}</div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginTop: 1 }}>
-                    {fmtTime(r.reservation_time)}{r.reservation_end_time ? ` – ${r.reservation_end_time}` : ''}
+                    {fmtTime(r.reservation_time)}
+                    {(() => {
+                      if (!r.reservation_end_time) return ''
+                      const p = r.reservation_end_time.split('T')
+                      const t = p.length > 1 ? p[1] : (p[0] && !p[0].includes('-') ? p[0] : '')
+                      return t ? ` – ${t}` : ''
+                    })()}
                   </div>
                 </div>
               )}

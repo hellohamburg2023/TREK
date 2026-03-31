@@ -101,6 +101,7 @@ export default function DayPlanSidebar({
     } catch {}
     return new Set(days.map(d => d.id))
   })
+  const [showPastDays, setShowPastDays] = useState(false)
   const [editingDayId, setEditingDayId] = useState(null)
   const [editTitle, setEditTitle] = useState('')
   const [isCalculating, setIsCalculating] = useState(false)
@@ -418,19 +419,27 @@ export default function DayPlanSidebar({
 
       {/* Tagesliste */}
       <div className="scroll-container" style={{ flex: 1, overflowY: 'auto', minHeight: 0, scrollbarWidth: 'thin', scrollbarColor: 'var(--scrollbar-thumb) transparent' }}>
-        {days.map((day, index) => {
-          const isSelected = selectedDayId === day.id
-          const isExpanded = expandedDays.has(day.id)
-          const da = getDayAssignments(day.id)
-          const cost = dayTotalCost(day.id, assignments, currency)
-          const formattedDate = formatDate(day.date, locale)
-          const loc = da.find(a => a.place?.lat && a.place?.lng)
-          const isDragTarget = dragOverDayId === day.id
-          const merged = getMergedItems(day.id)
-          const dayNoteUi = noteUi[day.id]
-          const placeItems = merged.filter(i => i.type === 'place')
+        {(() => {
+          const todayMs = new Date().setHours(0,0,0,0)
+          const isDayPast = (d) => d.date && new Date(d.date).setHours(0,0,0,0) < todayMs
+          let hasShownPastDaysHeader = false
+          const pastDaysCount = days.filter(isDayPast).length
 
-          return (
+          return days.map((day, index) => {
+            const isSelected = selectedDayId === day.id
+            const isExpanded = expandedDays.has(day.id)
+            const da = getDayAssignments(day.id)
+            const cost = dayTotalCost(day.id, assignments, currency)
+            const formattedDate = formatDate(day.date, locale)
+            const loc = da.find(a => a.place?.lat && a.place?.lng)
+            const isDragTarget = dragOverDayId === day.id
+            const merged = getMergedItems(day.id)
+            const dayNoteUi = noteUi[day.id]
+            const placeItems = merged.filter(i => i.type === 'place')
+            const isPast = isDayPast(day)
+            const isToday = day.date && new Date(day.date).setHours(0,0,0,0) === todayMs
+
+            const renderNode = (
             <div key={day.id} style={{ borderBottom: '1px solid var(--border-faint)' }}>
               {/* Tages-Header — akzeptiert Drops aus der PlacesSidebar */}
               <div
@@ -442,23 +451,26 @@ export default function DayPlanSidebar({
                   display: 'flex', alignItems: 'center', gap: 10,
                   padding: '11px 14px 11px 16px',
                   cursor: 'pointer',
-                  background: isDragTarget ? 'rgba(17,24,39,0.07)' : (isSelected ? 'var(--bg-tertiary)' : 'transparent'),
+                  background: isDragTarget ? 'rgba(17,24,39,0.07)' : (isSelected ? 'var(--bg-tertiary)' : (isToday ? 'rgba(16,185,129,0.05)' : 'transparent')),
                   transition: 'background 0.12s',
                   userSelect: 'none',
                   outline: isDragTarget ? '2px dashed rgba(17,24,39,0.25)' : 'none',
                   outlineOffset: -2,
                   borderRadius: isDragTarget ? 8 : 0,
+                  borderLeft: isToday ? '3px solid #10b981' : '3px solid transparent',
+                  marginLeft: -3,
                 }}
-                onMouseEnter={e => { if (!isSelected && !isDragTarget) e.currentTarget.style.background = 'var(--bg-tertiary)' }}
-                onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = isDragTarget ? 'rgba(17,24,39,0.07)' : 'transparent' }}
+                onMouseEnter={e => { if (!isSelected && !isDragTarget) e.currentTarget.style.background = isToday ? 'rgba(16,185,129,0.1)' : 'var(--bg-tertiary)' }}
+                onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = isDragTarget ? 'rgba(17,24,39,0.07)' : (isToday ? 'rgba(16,185,129,0.05)' : 'transparent') }}
               >
                 {/* Tages-Badge */}
                 <div style={{
                   width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
-                  background: isSelected ? 'var(--accent)' : 'var(--bg-hover)',
-                  color: isSelected ? 'var(--accent-text)' : 'var(--text-muted)',
+                  background: isSelected ? 'var(--accent)' : (isToday ? '#10b981' : 'var(--bg-hover)'),
+                  color: (isSelected || isToday) ? '#fff' : 'var(--text-muted)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 11, fontWeight: 700,
+                  boxShadow: isToday && !isSelected ? '0 0 0 2px rgba(16,185,129,0.2)' : 'none'
                 }}>
                   {index + 1}
                 </div>
@@ -933,7 +945,28 @@ export default function DayPlanSidebar({
               )}
             </div>
           )
-        })}
+
+            if (isPast) {
+               if (!hasShownPastDaysHeader) {
+                 hasShownPastDaysHeader = true;
+                 return (
+                   <React.Fragment key={`past-group-${day.id}`}>
+                     <div style={{ borderBottom: '1px solid var(--border-faint)' }}>
+                       <button onClick={() => setShowPastDays(!showPastDays)} style={{ width: '100%', padding: '12px 16px', background: 'var(--bg-secondary)', border: 'none', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary)', borderLeft: '3px solid var(--text-faint)' }}>
+                         {showPastDays ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                         <span style={{ fontSize: 13, fontWeight: 600 }}>{t('planner.pastDays', 'Vergangene Tage')} ({pastDaysCount})</span>
+                       </button>
+                     </div>
+                     {showPastDays ? renderNode : null}
+                   </React.Fragment>
+                 )
+               }
+               return showPastDays ? renderNode : null
+            }
+
+            return renderNode
+          })
+        })()}
       </div>
 
       {/* Notiz-Popup-Modal — über Portal gerendert, um den backdropFilter-Stapelkontext zu umgehen */}

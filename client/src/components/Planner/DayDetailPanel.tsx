@@ -395,6 +395,38 @@ export default function DayDetailPanel({ day, days, places, categories = [], tri
               </button>
             )}
 
+            {/* Activities/Places */}
+            {(() => {
+              const dayAssignments = Array.isArray(assignments) ? assignments.filter(a => a.day_id === day.id) : (assignments[day.id] || [])
+              if (!dayAssignments.length) return null
+              return (
+                <div style={{ marginTop: 24 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>{t('day.activities', 'Tagesplan')}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {dayAssignments.map((a, i) => {
+                      const place = a.place || places.find(p => p.id === a.place_id)
+                      if (!place) return null
+                      const timeStr = place.place_time ? `${fmtTime(place.place_time)}${place.end_time ? ` - ${fmtTime(place.end_time)}` : ''}` : ''
+                      return (
+                        <div key={a.id || i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--bg-card)', borderRadius: 10, border: '1px solid var(--border-faint)' }}>
+                          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {place.image_url ? <img src={place.image_url} style={{ width: '100%', height: '100%', borderRadius: 8, objectFit: 'cover' }} /> : <MapPin size={14} style={{ color: 'var(--text-muted)' }} />}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{place.name}</div>
+                              {timeStr && <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', flexShrink: 0, padding: '2px 6px', background: 'var(--bg-secondary)', borderRadius: 6 }}>{timeStr}</div>}
+                            </div>
+                            {place.address && <div style={{ fontSize: 11, color: 'var(--text-faint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 3 }}>{place.address}</div>}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })()}
+
             {/* Hotel Picker Popup — portal to body to escape transform stacking context */}
             {showHotelPicker && ReactDOM.createPortal(
               <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}

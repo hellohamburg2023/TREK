@@ -289,12 +289,25 @@ export function ReservationModal({ isOpen, onClose, onSave, reservation, days, p
             </div>
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <label style={labelStyle}>{t('reservations.date')}</label>
+            <label style={labelStyle}>{t('reservations.startDate', 'Anfangsdatum')}</label>
             <CustomDatePicker
               value={(() => { const [d] = (form.reservation_time || '').split('T'); return d || '' })()}
               onChange={d => {
                 const [, t] = (form.reservation_time || '').split('T')
                 set('reservation_time', d ? (t ? `${d}T${t}` : d) : '')
+              }}
+            />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <label style={labelStyle}>{t('reservations.endDate', 'Enddatum')}</label>
+            <CustomDatePicker
+              value={(() => { const d = (form.reservation_end_time || '').split('T')[0]; return d && d.includes('-') ? d : '' })()}
+              onChange={d => {
+                const parts = (form.reservation_end_time || '').split('T')
+                let t = ''
+                if (parts.length > 1) t = parts[1]
+                else if (parts[0] && !parts[0].includes('-')) t = parts[0]
+                set('reservation_end_time', d ? (t ? `${d}T${t}` : d) : (t || ''))
               }}
             />
           </div>
@@ -318,7 +331,19 @@ export function ReservationModal({ isOpen, onClose, onSave, reservation, days, p
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <label style={labelStyle}>{t('reservations.endTime')}</label>
-                <CustomTimePicker value={form.reservation_end_time} onChange={v => set('reservation_end_time', v)} />
+                <CustomTimePicker
+                  value={(() => {
+                    const parts = (form.reservation_end_time || '').split('T')
+                    const hasDate = parts[0] && parts[0].includes('-')
+                    if (hasDate) return parts[1] || ''
+                    return parts[0] || ''
+                  })()}
+                  onChange={t => {
+                    const parts = (form.reservation_end_time || '').split('T')
+                    const date = parts.length > 1 || (parts[0] && parts[0].includes('-')) ? parts[0] : ''
+                    set('reservation_end_time', date ? (t ? `${date}T${t}` : date) : t)
+                  }}
+                />
               </div>
             </>
           )}
