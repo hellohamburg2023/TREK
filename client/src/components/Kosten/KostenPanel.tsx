@@ -358,7 +358,7 @@ function ExpenseFormModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
           <div>
             <label style={labelStyle}>{t('kosten.date')}</label>
-            <input style={{ ...inputStyle, textAlign: 'left', boxSizing: 'border-box', maxWidth: '100%' }} type="date" value={form.expense_date} onChange={e => setField('expense_date', e.target.value)} />
+            <input style={{ ...inputStyle, textAlign: 'left', minWidth: 0, width: '100%', WebkitAppearance: 'none' }} type="date" value={form.expense_date} onChange={e => setField('expense_date', e.target.value)} />
           </div>
           <div>
             <label style={labelStyle}>{t('kosten.note')}</label>
