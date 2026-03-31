@@ -204,40 +204,46 @@ export default function PlacesSidebar({
                 <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
                   <button
                     onClick={e => { e.stopPropagation(); onEditPlace(place) }}
+                    onPointerDown={e => e.stopPropagation()}
+                    onTouchStart={e => e.stopPropagation()}
                     title={t('common.edit')}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      width: 20, height: 20, borderRadius: 6, marginRight: 6,
+                      width: 32, height: 32, borderRadius: 8, marginRight: 6,
                       background: 'var(--bg-hover)', border: 'none', cursor: 'pointer',
                       color: 'var(--text-faint)', padding: 0, transition: 'background 0.15s, color 0.15s',
                     }}
                     onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-tertiary)'; e.currentTarget.style.color = 'var(--text-primary)' }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--text-faint)' }}
-                  ><Pencil size={11} strokeWidth={2.3} /></button>
+                  ><Pencil size={15} strokeWidth={2.3} /></button>
                   <button
                     onClick={e => { e.stopPropagation(); onDeletePlace(place.id) }}
+                    onPointerDown={e => e.stopPropagation()}
+                    onTouchStart={e => e.stopPropagation()}
                     title={t('common.delete')}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      width: 20, height: 20, borderRadius: 6, marginRight: selectedDayId ? 6 : 0,
+                      width: 32, height: 32, borderRadius: 8, marginRight: selectedDayId ? 6 : 0,
                       background: 'var(--bg-hover)', border: 'none', cursor: 'pointer',
                       color: '#ef4444', padding: 0, transition: 'background 0.15s, color 0.15s',
                     }}
                     onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.12)'; e.currentTarget.style.color = '#dc2626' }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = '#ef4444' }}
-                  ><Trash2 size={11} strokeWidth={2.3} /></button>
+                  ><Trash2 size={15} strokeWidth={2.3} /></button>
                   {!inDay && selectedDayId && (
                     <button
                       onClick={e => { e.stopPropagation(); onAssignToDay(place.id) }}
+                      onPointerDown={e => e.stopPropagation()}
+                      onTouchStart={e => e.stopPropagation()}
                       style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        width: 20, height: 20, borderRadius: 6,
+                        width: 32, height: 32, borderRadius: 8,
                         background: 'var(--bg-hover)', border: 'none', cursor: 'pointer',
                         color: 'var(--text-faint)', padding: 0, transition: 'background 0.15s, color 0.15s',
                       }}
                       onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent-text)' }}
                       onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--text-faint)' }}
-                    ><Plus size={12} strokeWidth={2.5} /></button>
+                    ><Plus size={18} strokeWidth={2.5} /></button>
                   )}
                 </div>
               </div>
