@@ -132,11 +132,13 @@ export default function TripPlannerPage(): React.ReactElement | null {
 
   const { route, routeSegments, routeInfo, setRoute, setRouteInfo, updateRouteForDay } = useRouteCalculation(tripStore, selectedDayId)
 
-  const handleSelectDay = useCallback((dayId, skipFit) => {
+  const handleSelectDay = useCallback((dayId, skipFit, keepSidebarOpen = false) => {
     const changed = dayId !== selectedDayId
     tripStore.setSelectedDay(dayId)
     if (changed && !skipFit) setFitKey(k => k + 1)
-    setMobileSidebarOpen(null)
+    if (!keepSidebarOpen) {
+      setMobileSidebarOpen(null)
+    }
     updateRouteForDay(dayId)
   }, [tripStore, updateRouteForDay, selectedDayId])
 
@@ -515,7 +517,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
                     onDeletePlace={(placeId) => handleDeletePlace(placeId)}
                     onCategoryFilterChange={setMapCategoryFilter}
                     days={days}
-                    onSelectDay={(id) => handleSelectDay(id)}
+                    onSelectDay={(id) => handleSelectDay(id, false, true)}
                   />
                 </div>
               </div>
@@ -614,7 +616,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
                   <div style={{ flex: 1, overflow: 'auto' }}>
                     {mobileSidebarOpen === 'left'
                       ? <DayPlanSidebar tripId={tripId} trip={trip} days={days} places={places} categories={categories} assignments={assignments} selectedDayId={selectedDayId} selectedPlaceId={selectedPlaceId} selectedAssignmentId={selectedAssignmentId} onSelectDay={(id) => { handleSelectDay(id); setMobileSidebarOpen(null) }} onPlaceClick={handlePlaceClick} onReorder={handleReorder} onUpdateDayTitle={handleUpdateDayTitle} onAssignToDay={handleAssignToDay} onRouteCalculated={(r) => { if (r) { setRoute(r.coordinates); setRouteInfo({ distance: r.distanceText, duration: r.durationText }) } }} reservations={reservations} onAddReservation={(dayId) => { setEditingReservation(null); tripStore.setSelectedDay(dayId); setShowReservationModal(true); setMobileSidebarOpen(null) }} onDayDetail={(day) => { setShowDayDetail(day); setSelectedPlaceId(null); setSelectedAssignmentId(null); setMobileSidebarOpen(null) }} accommodations={tripAccommodations} />
-                      : <PlacesSidebar places={places} categories={categories} assignments={assignments} selectedDayId={selectedDayId} selectedPlaceId={selectedPlaceId} onPlaceClick={handlePlaceClick} onAddPlace={() => { setEditingPlace(null); setShowPlaceForm(true); setMobileSidebarOpen(null) }} onAssignToDay={handleAssignToDay} onRemoveAssignment={handleRemoveAssignment} onEditPlace={(place) => { setEditingPlace(place); setEditingAssignmentId(null); setShowPlaceForm(true); setMobileSidebarOpen(null) }} onDeletePlace={(placeId) => { handleDeletePlace(placeId); setMobileSidebarOpen(null) }} days={days} isMobile onCategoryFilterChange={setMapCategoryFilter} onSelectDay={(id) => handleSelectDay(id)} />
+                      : <PlacesSidebar places={places} categories={categories} assignments={assignments} selectedDayId={selectedDayId} selectedPlaceId={selectedPlaceId} onPlaceClick={handlePlaceClick} onAddPlace={() => { setEditingPlace(null); setShowPlaceForm(true); setMobileSidebarOpen(null) }} onAssignToDay={handleAssignToDay} onRemoveAssignment={handleRemoveAssignment} onEditPlace={(place) => { setEditingPlace(place); setEditingAssignmentId(null); setShowPlaceForm(true); setMobileSidebarOpen(null) }} onDeletePlace={(placeId) => { handleDeletePlace(placeId); setMobileSidebarOpen(null) }} days={days} isMobile onCategoryFilterChange={setMapCategoryFilter} onSelectDay={(id) => handleSelectDay(id, false, true)} />
                     }
                   </div>
                 </div>
