@@ -99,9 +99,11 @@ function ExpenseFormModal({
   onAddPayer: (name: string) => void
 }) {
   const { t } = useTranslation()
+  const opts = [...tripMembers.map(m => ({u: m.id, c: null})), ...customPayers.map(c => ({u: null, c}))]
+  const p1 = opts[0] || {u: null, c: null}
   const [form, setForm] = useState<ExpenseFormData>({
     title: '', amount: '', currency: tripCurrency, exchange_rate: '1',
-    paid_by: tripMembers[0]?.id ?? null, paid_by_name: null, category: 'Sonstiges',
+    paid_by: p1.u, paid_by_name: p1.c, category: 'Sonstiges',
     expense_date: new Date().toISOString().slice(0, 10), note: '', split_type: 'equal',
     participant_ids: tripMembers.map(m => m.id), participant_names: customPayers, share_values: {},
   })
@@ -146,14 +148,16 @@ function ExpenseFormModal({
         if (s.user_name && !customPayers.includes(s.user_name)) onAddPayer(s.user_name)
       }
     } else {
+      const allOpts = [...tripMembers.map(m => ({u: m.id, c: null})), ...customPayers.map(c => ({u: null, c}))]
+      const p1 = allOpts[0] || {u: null, c: null}
       setForm({
         title: '', amount: '', currency: tripCurrency, exchange_rate: '1',
-        paid_by: tripMembers[0]?.id ?? null, paid_by_name: null, category: 'Sonstiges',
+        paid_by: p1.u, paid_by_name: p1.c, category: 'Sonstiges',
         expense_date: new Date().toISOString().slice(0, 10), note: '', split_type: 'equal',
         participant_ids: tripMembers.map(m => m.id), participant_names: customPayers, share_values: {},
       })
     }
-  }, [isOpen, expense, tripMembers, tripCurrency])
+  }, [isOpen, expense, tripMembers, tripCurrency, customPayers])
 
   const needsExchangeRate = form.currency !== tripCurrency
   const parsedAmount = parseFloat(form.amount.replace(',', '.')) || 0
@@ -542,11 +546,14 @@ function SettlementFormModal({
   customPayers: string[]
 }) {
   const { t } = useTranslation()
+  const opts = [...tripMembers.map(m => ({u: m.id, c: null})), ...customPayers.map(c => ({u: null, c}))]
+  const p1 = opts[0] || {u: null, c: null}
+  const p2 = opts[1] || p1
   const [form, setForm] = useState<SettlementFormData>({
-    from_user_id: tripMembers[0]?.id ?? null,
-    from_name: null,
-    to_user_id: tripMembers[1]?.id ?? null,
-    to_name: null,
+    from_user_id: p1.u,
+    from_name: p1.c,
+    to_user_id: p2.u,
+    to_name: p2.c,
     amount: '', currency: tripCurrency, exchange_rate: '1', note: '',
   })
   const [saving, setSaving] = useState(false)
@@ -566,9 +573,12 @@ function SettlementFormModal({
         exchange_rate: '1',
       }))
     } else {
-      setForm({ from_user_id: tripMembers[0]?.id ?? null, from_name: null, to_user_id: tripMembers[1]?.id ?? null, to_name: null, amount: '', currency: tripCurrency, exchange_rate: '1', note: '' })
+      const allOpts = [...tripMembers.map(m => ({u: m.id, c: null})), ...customPayers.map(c => ({u: null, c}))]
+      const p1 = allOpts[0] || {u: null, c: null}
+      const p2 = allOpts[1] || p1
+      setForm({ from_user_id: p1.u, from_name: p1.c, to_user_id: p2.u, to_name: p2.c, amount: '', currency: tripCurrency, exchange_rate: '1', note: '' })
     }
-  }, [isOpen, prefill, tripMembers, tripCurrency])
+  }, [isOpen, prefill, tripMembers, tripCurrency, customPayers])
 
   const needsExchangeRate = form.currency !== tripCurrency
 
@@ -744,7 +754,7 @@ function exportPDF(expenses: KostenExpense[], settlements: KostenSettlement[], b
   </style></head><body>
   <h1>${t('kosten.pdfTitle')}: ${tripTitle}</h1>
   <p>${new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-  <div class="total">${fmt(total)} ${t('kosten.totalSpent').toLowerCase()}</div>
+  <div class="total">${fmt(total)} ${t('kosten.totalSpent')}</div>
 
   <h2>${t('kosten.tabExpenses')}</h2>
   <table><thead><tr>
@@ -767,15 +777,47 @@ function exportPDF(expenses: KostenExpense[], settlements: KostenSettlement[], b
 
   </body></html>`
 
-  const blob = new Blob([html], { type: 'text/html' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${tripTitle || 'kosten'}-bericht.html`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  const overlay = document.createElement('div')
+  overlay.id = 'pdf-preview-overlay'
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:8px;'
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove() }
+
+  const card = document.createElement('div')
+  card.style.cssText = 'width:100%;max-width:1000px;height:95vh;background:var(--bg-card);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3);'
+
+  const header = document.createElement('div')
+  header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border-primary);flex-shrink:0;'
+  
+  const encTitle = (tripTitle || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  
+  header.innerHTML = `
+    <span style="font-size:13px;font-weight:600;color:var(--text-primary)">${t('kosten.pdfTitle')} – ${encTitle}</span>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button id="pdf-print-btn" style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:500;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:4px 8px;border-radius:6px;font-family:inherit">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        ${t('kosten.pdfExport')}
+      </button>
+      <button id="pdf-close-btn" style="background:none;border:none;cursor:pointer;color:var(--text-faint);display:flex;padding:4px;border-radius:6px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+  `
+
+  const iframe = document.createElement('iframe')
+  iframe.style.cssText = 'flex:1;width:100%;border:none;background:#fff;'
+  iframe.setAttribute('sandbox', 'allow-same-origin allow-modals')
+  iframe.srcdoc = html
+
+  card.appendChild(header)
+  card.appendChild(iframe)
+  overlay.appendChild(card)
+  document.body.appendChild(overlay)
+
+  const printBtn = header.querySelector('#pdf-print-btn') as HTMLButtonElement
+  const closeBtn = header.querySelector('#pdf-close-btn') as HTMLButtonElement
+  
+  if (closeBtn) closeBtn.onclick = () => overlay.remove()
+  if (printBtn) printBtn.onclick = () => { iframe.contentWindow?.print() }
 }
 
 // ── Main Panel ────────────────────────────────────────────────────────────────
@@ -1149,12 +1191,6 @@ export default function KostenPanel({ tripId, tripTitle = '', tripMembers, tripC
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                         <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{fmtAmt(d.amount, tripCurrency, locale)}</span>
-                        <button
-                          onClick={() => { setSettlementPrefill({ from_user_id: d.from_user_id, from_name: d.from_name, to_user_id: d.to_user_id, to_name: d.to_name, amount: d.amount }); setShowSettlementForm(true) }}
-                          style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--accent)', background: 'transparent', color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}
-                        >
-                          {t('kosten.settleUp')}
-                        </button>
                       </div>
                     </div>
                   ))}
@@ -1166,6 +1202,13 @@ export default function KostenPanel({ tripId, tripTitle = '', tripMembers, tripC
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>{t('kosten.settlements')}</h2>
+                <button
+                  onClick={() => { setSettlementPrefill(null); setShowSettlementForm(true) }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500, padding: 0 }}
+                >
+                  <Plus size={16} />
+                  {t('kosten.addSettlement')}
+                </button>
               </div>
               {settlements.length === 0 ? (
                 <div style={{ fontSize: 13, color: 'var(--text-faint)', padding: '12px 0' }}>—</div>
