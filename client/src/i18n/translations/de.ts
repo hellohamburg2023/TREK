@@ -754,6 +754,8 @@ const de: Record<string, string | { name: string; category: string }[]> = {
   'reservations.datetime': 'Datum & Uhrzeit',
   'reservations.startTime': 'Startzeit',
   'reservations.endTime': 'Endzeit',
+  'reservations.startDate': 'Anfangsdatum',
+  'reservations.endDate': 'Enddatum',
   'reservations.date': 'Datum',
   'reservations.time': 'Uhrzeit',
   'reservations.timeAlt': 'Uhrzeit (alternativ, z.B. 19:30)',
@@ -1142,6 +1144,7 @@ const de: Record<string, string | { name: string; category: string }[]> = {
   'planner.keepPosition': 'Position bei Routenoptimierung beibehalten',
   'planner.dayDetails': 'Tagesdetails',
   'planner.dayN': 'Tag {n}',
+  'planner.pastDays': 'Vergangene Tage',
 
   // Dashboard Stats
   'stats.countries': 'Länder',
@@ -1173,6 +1176,7 @@ const de: Record<string, string | { name: string; category: string }[]> = {
   'day.confirmation': 'Bestätigung',
   'day.editAccommodation': 'Unterkunft bearbeiten',
   'day.reservations': 'Reservierungen',
+  'day.activities': 'Tagesplan',
 
   // Photos / Immich
   'memories.title': 'Fotos',

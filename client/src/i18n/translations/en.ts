@@ -758,6 +758,8 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'reservations.datetime': 'Date & Time',
   'reservations.startTime': 'Start time',
   'reservations.endTime': 'End time',
+  'reservations.startDate': 'Start date',
+  'reservations.endDate': 'End date',
   'reservations.date': 'Date',
   'reservations.time': 'Time',
   'reservations.timeAlt': 'Time (alternative, e.g. 19:30)',
@@ -1146,6 +1148,7 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'planner.keepPosition': 'Keep position during route optimization',
   'planner.dayDetails': 'Day details',
   'planner.dayN': 'Day {n}',
+  'planner.pastDays': 'Past Days',
 
   // Dashboard Stats
   'stats.countries': 'Countries',

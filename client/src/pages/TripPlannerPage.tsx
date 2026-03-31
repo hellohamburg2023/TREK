@@ -622,6 +622,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
               reservations={reservations}
               days={days}
               assignments={assignments}
+              accommodations={tripAccommodations}
               files={files}
               onAdd={() => { setEditingReservation(null); setShowReservationModal(true) }}
               onEdit={(r) => { setEditingReservation(r); setShowReservationModal(true) }}

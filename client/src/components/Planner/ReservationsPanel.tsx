@@ -68,6 +68,13 @@ function ReservationCard({ r, tripId, onEdit, onDelete, files = [], onNavigateTo
   const attachedFiles = files.filter(f => f.reservation_id === r.id || (f.linked_reservation_ids || []).includes(r.id))
   const linked = r.assignment_id ? assignmentLookup[r.assignment_id] : null
 
+  // Resolve hotel dates from accommodation if missing reservation_time
+  const accInfo = r.type === 'hotel' && r.accommodation_id ? accommodations?.find(a => a.id === r.accommodation_id) : null
+  const hotelStartDay = accInfo ? days.find(d => d.id === accInfo.start_day_id) : null
+  const hotelEndDay = accInfo ? days.find(d => d.id === accInfo.end_day_id) : null
+  const effResTime = r.reservation_time || (hotelStartDay?.date ? hotelStartDay.date : null)
+  const effResEndTime = r.reservation_end_time || (hotelEndDay?.date && hotelEndDay.id !== hotelStartDay?.id ? hotelEndDay.date : null)
+
   const handleToggle = async () => {
     try { await toggleReservationStatus(tripId, r.id) }
     catch { toast.error(t('reservations.toast.updateError')) }
@@ -112,36 +119,36 @@ function ReservationCard({ r, tripId, onEdit, onDelete, files = [], onNavigateTo
       </div>
 
       {/* Details */}
-      {(r.reservation_time || r.confirmation_number || r.location || linked || r.metadata) && (
+      {(effResTime || r.confirmation_number || r.location || linked || r.metadata) && (
         <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
           {/* Row 1: Date, Time, Code */}
-          {(r.reservation_time || r.confirmation_number) && (
+          {(effResTime || r.confirmation_number) && (
             <div style={{ display: 'flex', gap: 0, borderRadius: 8, overflow: 'hidden', background: 'var(--bg-secondary)', boxShadow: '0 1px 6px rgba(0,0,0,0.08)' }}>
-              {r.reservation_time && (
+              {effResTime && (
                 <div style={{ flex: 1, padding: '5px 10px', textAlign: 'center', borderRight: '1px solid var(--border-faint)' }}>
                   <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('reservations.date')}</div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginTop: 1 }}>
-                    {fmtDate(r.reservation_time)}
+                    {fmtDate(effResTime)}
                     {(() => {
-                      if (!r.reservation_end_time) return ''
-                      const p = r.reservation_end_time.split('T')
+                      if (!effResEndTime) return ''
+                      const p = effResEndTime.split('T')
                       if (p[0] && p[0].includes('-')) {
                         const ed = fmtDate(p[0])
-                        return ed !== fmtDate(r.reservation_time) ? ` – ${ed}` : ''
+                        return ed !== fmtDate(effResTime) ? ` – ${ed}` : ''
                       }
                       return ''
                     })()}
                   </div>
                 </div>
               )}
-              {r.reservation_time?.includes('T') && (
+              {effResTime?.includes('T') && (
                 <div style={{ flex: 1, padding: '5px 10px', textAlign: 'center', borderRight: '1px solid var(--border-faint)' }}>
                   <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('reservations.time')}</div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginTop: 1 }}>
-                    {fmtTime(r.reservation_time)}
+                    {fmtTime(effResTime)}
                     {(() => {
-                      if (!r.reservation_end_time) return ''
-                      const p = r.reservation_end_time.split('T')
+                      if (!effResEndTime) return ''
+                      const p = effResEndTime.split('T')
                       const t = p.length > 1 ? p[1] : (p[0] && !p[0].includes('-') ? p[0] : '')
                       return t ? ` – ${t}` : ''
                     })()}
@@ -282,6 +289,7 @@ interface ReservationsPanelProps {
   reservations: Reservation[]
   days: Day[]
   assignments: AssignmentsMap
+  accommodations?: any[]
   files?: TripFile[]
   onAdd: () => void
   onEdit: (reservation: Reservation) => void
@@ -289,7 +297,7 @@ interface ReservationsPanelProps {
   onNavigateToFiles: () => void
 }
 
-export default function ReservationsPanel({ tripId, reservations, days, assignments, files = [], onAdd, onEdit, onDelete, onNavigateToFiles }: ReservationsPanelProps) {
+export default function ReservationsPanel({ tripId, reservations, days, assignments, accommodations = [], files = [], onAdd, onEdit, onDelete, onNavigateToFiles }: ReservationsPanelProps) {
   const { t, locale } = useTranslation()
   const [showHint, setShowHint] = useState(() => !localStorage.getItem('hideReservationHint'))
 
