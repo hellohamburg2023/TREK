@@ -322,124 +322,6 @@ function runMigrations(db: Database.Database): void {
       )`);
     },
     () => {
-<<<<<<< HEAD
-      // Kosten: expense splitting addon
-      db.exec(`
-        CREATE TABLE IF NOT EXISTS kosten_expenses (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
-          title TEXT NOT NULL,
-          amount REAL NOT NULL DEFAULT 0,
-          currency TEXT NOT NULL DEFAULT 'EUR',
-          exchange_rate REAL NOT NULL DEFAULT 1,
-          paid_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          category TEXT NOT NULL DEFAULT 'Sonstiges',
-          expense_date TEXT,
-          note TEXT,
-          split_type TEXT NOT NULL DEFAULT 'equal',
-          sort_order INTEGER DEFAULT 0,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE INDEX IF NOT EXISTS idx_kosten_expenses_trip ON kosten_expenses(trip_id);
-        CREATE INDEX IF NOT EXISTS idx_kosten_expenses_paid_by ON kosten_expenses(paid_by);
-        CREATE TABLE IF NOT EXISTS kosten_shares (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          expense_id INTEGER NOT NULL REFERENCES kosten_expenses(id) ON DELETE CASCADE,
-          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          share_value REAL,
-          UNIQUE(expense_id, user_id)
-        );
-        CREATE INDEX IF NOT EXISTS idx_kosten_shares_expense ON kosten_shares(expense_id);
-        CREATE TABLE IF NOT EXISTS kosten_settlements (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
-          from_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          to_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          amount REAL NOT NULL DEFAULT 0,
-          currency TEXT NOT NULL DEFAULT 'EUR',
-          exchange_rate REAL NOT NULL DEFAULT 1,
-          note TEXT,
-          settled_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE INDEX IF NOT EXISTS idx_kosten_settlements_trip ON kosten_settlements(trip_id);
-      `);
-      try {
-        db.prepare("INSERT OR IGNORE INTO addons (id, name, description, type, icon, enabled, sort_order) VALUES ('kosten', 'Kosten', 'Split expenses and settle debts between trip members', 'trip', 'Receipt', 1, 4)").run();
-      } catch {}
-    },
-    () => {
-      // Make paid_by nullable + add paid_by_name for external (non-registered) payers
-      db.exec('PRAGMA foreign_keys = OFF');
-      db.exec(`
-        CREATE TABLE kosten_expenses_v2 (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          trip_id INTEGER NOT NULL,
-          title TEXT NOT NULL,
-          amount REAL NOT NULL DEFAULT 0,
-          currency TEXT NOT NULL DEFAULT 'EUR',
-          exchange_rate REAL NOT NULL DEFAULT 1,
-          paid_by INTEGER,
-          paid_by_name TEXT,
-          category TEXT NOT NULL DEFAULT 'Sonstiges',
-          expense_date TEXT,
-          note TEXT,
-          split_type TEXT NOT NULL DEFAULT 'equal',
-          sort_order INTEGER DEFAULT 0,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        INSERT INTO kosten_expenses_v2 (id, trip_id, title, amount, currency, exchange_rate, paid_by, category, expense_date, note, split_type, sort_order, created_at)
-          SELECT id, trip_id, title, amount, currency, exchange_rate, paid_by, category, expense_date, note, split_type, sort_order, created_at FROM kosten_expenses;
-        DROP TABLE kosten_expenses;
-        ALTER TABLE kosten_expenses_v2 RENAME TO kosten_expenses;
-        CREATE INDEX IF NOT EXISTS idx_kosten_expenses_trip ON kosten_expenses(trip_id);
-        CREATE INDEX IF NOT EXISTS idx_kosten_expenses_paid_by ON kosten_expenses(paid_by);
-      `);
-      db.exec('PRAGMA foreign_keys = ON');
-    },
-    () => {
-      // Make kosten_settlements from/to user IDs nullable + add name fields for external (non-registered) payers
-      db.exec('PRAGMA foreign_keys = OFF');
-      db.exec(`
-        CREATE TABLE kosten_settlements_v2 (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          trip_id INTEGER NOT NULL,
-          from_user_id INTEGER,
-          from_name TEXT,
-          to_user_id INTEGER,
-          to_name TEXT,
-          amount REAL NOT NULL DEFAULT 0,
-          currency TEXT NOT NULL DEFAULT 'EUR',
-          exchange_rate REAL NOT NULL DEFAULT 1,
-          note TEXT,
-          settled_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        INSERT INTO kosten_settlements_v2 (id, trip_id, from_user_id, from_name, to_user_id, to_name, amount, currency, exchange_rate, note, settled_at)
-          SELECT id, trip_id, from_user_id, NULL, to_user_id, NULL, amount, currency, exchange_rate, note, settled_at FROM kosten_settlements;
-        DROP TABLE kosten_settlements;
-        ALTER TABLE kosten_settlements_v2 RENAME TO kosten_settlements;
-        CREATE INDEX IF NOT EXISTS idx_kosten_settlements_trip ON kosten_settlements(trip_id);
-      `);
-      db.exec('PRAGMA foreign_keys = ON');
-    },
-    () => {
-      // Make kosten_shares.user_id nullable + add user_name for custom (non-registered) persons
-      db.exec('PRAGMA foreign_keys = OFF');
-      db.exec(`
-        CREATE TABLE kosten_shares_v2 (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          expense_id INTEGER NOT NULL REFERENCES kosten_expenses(id) ON DELETE CASCADE,
-          user_id INTEGER,
-          user_name TEXT,
-          share_value REAL
-        );
-        INSERT INTO kosten_shares_v2 (id, expense_id, user_id, user_name, share_value)
-          SELECT id, expense_id, user_id, NULL, share_value FROM kosten_shares;
-        DROP TABLE kosten_shares;
-        ALTER TABLE kosten_shares_v2 RENAME TO kosten_shares;
-        CREATE INDEX IF NOT EXISTS idx_kosten_shares_expense ON kosten_shares(expense_id);
-      `);
-      db.exec('PRAGMA foreign_keys = ON');
-=======
       // Add day_plan_position to reservations for persistent transport ordering in day timeline
       try { db.exec('ALTER TABLE reservations ADD COLUMN day_plan_position REAL DEFAULT NULL'); } catch {}
     },
@@ -553,7 +435,6 @@ function runMigrations(db: Database.Database): void {
     },
     () => {
       try { db.exec('ALTER TABLE trips ADD COLUMN reminder_days INTEGER DEFAULT 3'); } catch {}
->>>>>>> upstream/dev
     },
   ];
 

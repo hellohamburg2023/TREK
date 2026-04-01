@@ -496,13 +496,8 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'admin.addons.catalog.collab.description': 'Real-time notes, polls, and chat for trip planning',
   'admin.addons.catalog.memories.name': 'Photos (Immich)',
   'admin.addons.catalog.memories.description': 'Share trip photos via your Immich instance',
-<<<<<<< HEAD
-  'admin.addons.catalog.kosten.name': 'Costs',
-  'admin.addons.catalog.kosten.description': 'Split expenses and settle debts between trip members',
-=======
   'admin.addons.catalog.mcp.name': 'MCP',
   'admin.addons.catalog.mcp.description': 'Model Context Protocol for AI assistant integration',
->>>>>>> upstream/dev
   'admin.addons.subtitleBefore': 'Enable or disable features to customize your ',
   'admin.addons.subtitleAfter': ' experience.',
   'admin.addons.enabled': 'Enabled',

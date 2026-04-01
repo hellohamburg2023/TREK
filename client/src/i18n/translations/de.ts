@@ -493,13 +493,10 @@ const de: Record<string, string | { name: string; category: string }[]> = {
   'admin.addons.catalog.atlas.description': 'Weltkarte mit besuchten Ländern und Reisestatistiken',
   'admin.addons.catalog.collab.name': 'Collab',
   'admin.addons.catalog.collab.description': 'Echtzeit-Notizen, Umfragen und Chat für die Reiseplanung',
-<<<<<<< HEAD
-=======
   'admin.addons.catalog.memories.name': 'Fotos (Immich)',
   'admin.addons.catalog.memories.description': 'Reisefotos über deine Immich-Instanz teilen',
   'admin.addons.catalog.mcp.name': 'MCP',
   'admin.addons.catalog.mcp.description': 'Model Context Protocol für die KI-Assistenten-Integration',
->>>>>>> upstream/dev
   'admin.addons.subtitleBefore': 'Aktiviere oder deaktiviere Funktionen, um ',
   'admin.addons.subtitleAfter': ' nach deinen Wünschen anzupassen.',
   'admin.addons.enabled': 'Aktiviert',

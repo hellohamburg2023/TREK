@@ -127,21 +127,6 @@ app.use(enforceGlobalMfaPolicy);
 }
 
 // Avatars are public (shown on login, sharing screens)
-<<<<<<< HEAD
-app.use('/uploads/avatars', express.static(path.join(__dirname, '../data/uploads/avatars')));
-
-// All other uploads require authentication
-app.get('/uploads/:type/:filename', (req: Request, res: Response) => {
-  const { type, filename } = req.params;
-  const allowedTypes = ['covers', 'files', 'photos'];
-  if (!allowedTypes.includes(type)) return res.status(404).send('Not found');
-
-  // Prevent path traversal
-  const safeName = path.basename(filename);
-  const filePath = path.join(__dirname, '../data/uploads', type, safeName);
-  const resolved = path.resolve(filePath);
-  if (!resolved.startsWith(path.resolve(__dirname, '../data/uploads', type))) {
-=======
 import { authenticate } from './middleware/auth';
 app.use('/uploads/avatars', express.static(path.join(__dirname, '../uploads/avatars')));
 app.use('/uploads/covers', express.static(path.join(__dirname, '../uploads/covers')));
@@ -152,7 +137,6 @@ app.get('/uploads/photos/:filename', (req: Request, res: Response) => {
   const filePath = path.join(__dirname, '../uploads/photos', safeName);
   const resolved = path.resolve(filePath);
   if (!resolved.startsWith(path.resolve(__dirname, '../uploads/photos'))) {
->>>>>>> upstream/dev
     return res.status(403).send('Forbidden');
   }
   if (!fs.existsSync(resolved)) return res.status(404).send('Not found');

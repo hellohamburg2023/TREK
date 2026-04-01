@@ -384,48 +384,6 @@ function createTables(db: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_assignment_participants_assignment ON assignment_participants(assignment_id);
 
-<<<<<<< HEAD
-    -- Kosten (expense splitting) addon tables
-    CREATE TABLE IF NOT EXISTS kosten_expenses (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
-      title TEXT NOT NULL,
-      amount REAL NOT NULL DEFAULT 0,
-      currency TEXT NOT NULL DEFAULT 'EUR',
-      exchange_rate REAL NOT NULL DEFAULT 1,
-      paid_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      category TEXT NOT NULL DEFAULT 'Sonstiges',
-      expense_date TEXT,
-      note TEXT,
-      split_type TEXT NOT NULL DEFAULT 'equal',
-      sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE INDEX IF NOT EXISTS idx_kosten_expenses_trip ON kosten_expenses(trip_id);
-    CREATE INDEX IF NOT EXISTS idx_kosten_expenses_paid_by ON kosten_expenses(paid_by);
-
-    CREATE TABLE IF NOT EXISTS kosten_shares (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      expense_id INTEGER NOT NULL REFERENCES kosten_expenses(id) ON DELETE CASCADE,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      share_value REAL,
-      UNIQUE(expense_id, user_id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_kosten_shares_expense ON kosten_shares(expense_id);
-
-    CREATE TABLE IF NOT EXISTS kosten_settlements (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
-      from_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      to_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      amount REAL NOT NULL DEFAULT 0,
-      currency TEXT NOT NULL DEFAULT 'EUR',
-      exchange_rate REAL NOT NULL DEFAULT 1,
-      note TEXT,
-      settled_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE INDEX IF NOT EXISTS idx_kosten_settlements_trip ON kosten_settlements(trip_id);
-=======
     CREATE TABLE IF NOT EXISTS audit_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -436,7 +394,6 @@ function createTables(db: Database.Database): void {
       ip TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at DESC);
->>>>>>> upstream/dev
   `);
 }
 

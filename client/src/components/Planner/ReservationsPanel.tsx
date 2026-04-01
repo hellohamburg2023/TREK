@@ -62,11 +62,7 @@ interface ReservationCardProps {
   canEdit: boolean
 }
 
-<<<<<<< HEAD
-function ReservationCard({ r, tripId, days, accommodations, onEdit, onDelete, files = [], onNavigateToFiles, assignmentLookup }: ReservationCardProps) {
-=======
 function ReservationCard({ r, tripId, onEdit, onDelete, files = [], onNavigateToFiles, assignmentLookup, canEdit }: ReservationCardProps) {
->>>>>>> upstream/dev
   const { toggleReservationStatus } = useTripStore()
   const toast = useToast()
   const { t, locale } = useTranslation()
@@ -167,17 +163,7 @@ function ReservationCard({ r, tripId, onEdit, onDelete, files = [], onNavigateTo
                 <div style={{ flex: 1, padding: '5px 10px', textAlign: 'center', borderRight: '1px solid var(--border-faint)' }}>
                   <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('reservations.time')}</div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginTop: 1 }}>
-<<<<<<< HEAD
-                    {fmtTime(effResTime)}
-                    {(() => {
-                      if (!effResEndTime) return ''
-                      const p = effResEndTime.split('T')
-                      const t = p.length > 1 ? p[1] : (p[0] && !p[0].includes('-') ? p[0] : '')
-                      return t ? ` – ${t}` : ''
-                    })()}
-=======
                     {fmtTime(r.reservation_time)}{r.reservation_end_time ? ` – ${r.reservation_end_time.includes('T') ? fmtTime(r.reservation_end_time) : fmtTime(r.reservation_time.split('T')[0] + 'T' + r.reservation_end_time)}` : ''}
->>>>>>> upstream/dev
                   </div>
                 </div>
               )}
@@ -422,22 +408,14 @@ export default function ReservationsPanel({ tripId, reservations, days, assignme
             {allPending.length > 0 && (
               <Section title={t('reservations.pending')} count={allPending.length} accent="gray">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-<<<<<<< HEAD
-                  {allPending.map(r => <ReservationCard key={r.id} r={r} tripId={tripId} days={days} accommodations={accommodations} onEdit={onEdit} onDelete={onDelete} files={files} onNavigateToFiles={onNavigateToFiles} assignmentLookup={assignmentLookup} />)}
-=======
                   {allPending.map(r => <ReservationCard key={r.id} r={r} tripId={tripId} onEdit={onEdit} onDelete={onDelete} files={files} onNavigateToFiles={onNavigateToFiles} assignmentLookup={assignmentLookup} canEdit={canEdit} />)}
->>>>>>> upstream/dev
                 </div>
               </Section>
             )}
             {allConfirmed.length > 0 && (
               <Section title={t('reservations.confirmed')} count={allConfirmed.length} accent="green">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-<<<<<<< HEAD
-                  {allConfirmed.map(r => <ReservationCard key={r.id} r={r} tripId={tripId} days={days} accommodations={accommodations} onEdit={onEdit} onDelete={onDelete} files={files} onNavigateToFiles={onNavigateToFiles} assignmentLookup={assignmentLookup} />)}
-=======
                   {allConfirmed.map(r => <ReservationCard key={r.id} r={r} tripId={tripId} onEdit={onEdit} onDelete={onDelete} files={files} onNavigateToFiles={onNavigateToFiles} assignmentLookup={assignmentLookup} canEdit={canEdit} />)}
->>>>>>> upstream/dev
                 </div>
               </Section>
             )}
