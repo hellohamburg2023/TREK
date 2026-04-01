@@ -87,22 +87,28 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
         categoriesApi.list(),
       ])
 
+      const normalizedDays = Array.isArray(daysData?.days) ? daysData.days : []
+      const normalizedPlaces = Array.isArray(placesData?.places) ? placesData.places : []
+      const normalizedPackingItems = Array.isArray(packingData?.items) ? packingData.items : []
+      const normalizedTags = Array.isArray(tagsData?.tags) ? tagsData.tags : []
+      const normalizedCategories = Array.isArray(categoriesData?.categories) ? categoriesData.categories : []
+
       const assignmentsMap: AssignmentsMap = {}
       const dayNotesMap: DayNotesMap = {}
-      for (const day of daysData.days) {
+      for (const day of normalizedDays) {
         assignmentsMap[String(day.id)] = day.assignments || []
         dayNotesMap[String(day.id)] = day.notes_items || []
       }
 
       set({
         trip: tripData.trip,
-        days: daysData.days,
-        places: placesData.places,
+        days: normalizedDays,
+        places: normalizedPlaces,
         assignments: assignmentsMap,
         dayNotes: dayNotesMap,
-        packingItems: packingData.items,
-        tags: tagsData.tags,
-        categories: categoriesData.categories,
+        packingItems: normalizedPackingItems,
+        tags: normalizedTags,
+        categories: normalizedCategories,
         isLoading: false,
       })
     } catch (err: unknown) {
@@ -115,13 +121,14 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
   refreshDays: async (tripId: number | string) => {
     try {
       const daysData = await daysApi.list(tripId)
+      const normalizedDays = Array.isArray(daysData?.days) ? daysData.days : []
       const assignmentsMap: AssignmentsMap = {}
       const dayNotesMap: DayNotesMap = {}
-      for (const day of daysData.days) {
+      for (const day of normalizedDays) {
         assignmentsMap[String(day.id)] = day.assignments || []
         dayNotesMap[String(day.id)] = day.notes_items || []
       }
-      set({ days: daysData.days, assignments: assignmentsMap, dayNotes: dayNotesMap })
+      set({ days: normalizedDays, assignments: assignmentsMap, dayNotes: dayNotesMap })
     } catch (err: unknown) {
       console.error('Failed to refresh days:', err)
     }
@@ -132,13 +139,14 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
       const result = await tripsApi.update(tripId, data)
       set({ trip: result.trip })
       const daysData = await daysApi.list(tripId)
+      const normalizedDays = Array.isArray(daysData?.days) ? daysData.days : []
       const assignmentsMap: AssignmentsMap = {}
       const dayNotesMap: DayNotesMap = {}
-      for (const day of daysData.days) {
+      for (const day of normalizedDays) {
         assignmentsMap[String(day.id)] = day.assignments || []
         dayNotesMap[String(day.id)] = day.notes_items || []
       }
-      set({ days: daysData.days, assignments: assignmentsMap, dayNotes: dayNotesMap })
+      set({ days: normalizedDays, assignments: assignmentsMap, dayNotes: dayNotesMap })
       return result.trip
     } catch (err: unknown) {
       throw new Error(getApiErrorMessage(err, 'Error updating trip'))
