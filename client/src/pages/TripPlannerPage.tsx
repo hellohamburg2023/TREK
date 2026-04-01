@@ -180,13 +180,33 @@ export default function TripPlannerPage(): React.ReactElement | null {
   const handleSavePlace = useCallback(async (data) => {
     const pendingFiles = data._pendingFiles
     delete data._pendingFiles
+    const { place_time, end_time, day_id, ...placeData } = data
+    const selectedModalDayId = day_id ? Number(day_id) : null
     if (editingPlace) {
-      // Always strip time fields from place update — time is per-assignment only
-      const { place_time, end_time, ...placeData } = data
       await tripStore.updatePlace(tripId, editingPlace.id, placeData)
-      // If editing from assignment context, save time per-assignment
-      if (editingAssignmentId) {
-        await assignmentsApi.updateTime(tripId, editingAssignmentId, { place_time: place_time || null, end_time: end_time || null })
+      // Save time per assignment (existing assignment context or selected day in modal)
+      if (editingAssignmentId || selectedModalDayId) {
+        let targetAssignmentId = editingAssignmentId
+        let targetDayId: number | null = null
+
+        if (!targetAssignmentId && selectedModalDayId) {
+          targetDayId = selectedModalDayId
+          const existing = (assignments[String(selectedModalDayId)] || []).find(a => a.place?.id === editingPlace.id)
+          if (existing?.id) {
+            targetAssignmentId = existing.id
+          } else {
+            const created = await tripStore.assignPlaceToDay(tripId, selectedModalDayId, editingPlace.id)
+            targetAssignmentId = created?.id || null
+          }
+        }
+
+        if (targetAssignmentId) {
+          await assignmentsApi.updateTime(tripId, targetAssignmentId, { place_time: place_time || null, end_time: end_time || null })
+        }
+
+        if (targetDayId) {
+          tripStore.setSelectedDay(targetDayId)
+        }
         await tripStore.refreshDays(tripId)
       }
       // Upload pending files with place_id
@@ -201,7 +221,15 @@ export default function TripPlannerPage(): React.ReactElement | null {
       toast.success(t('trip.toast.placeUpdated'))
       if (window.innerWidth < 768) setMobileSidebarOpen('right')
     } else {
-      const place = await tripStore.addPlace(tripId, data)
+      const place = await tripStore.addPlace(tripId, placeData)
+      if (place?.id && selectedModalDayId) {
+        const assignment = await tripStore.assignPlaceToDay(tripId, selectedModalDayId, place.id)
+        if (assignment?.id && (place_time || end_time)) {
+          await assignmentsApi.updateTime(tripId, assignment.id, { place_time: place_time || null, end_time: end_time || null })
+        }
+        tripStore.setSelectedDay(selectedModalDayId)
+        await tripStore.refreshDays(tripId)
+      }
       if (pendingFiles?.length > 0 && place?.id) {
         for (const file of pendingFiles) {
           const fd = new FormData()
@@ -216,7 +244,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
       setRightCollapsed(false)
       if (window.innerWidth < 768) setMobileSidebarOpen('right')
     }
-  }, [editingPlace, editingAssignmentId, tripId, tripStore, toast, t, setSelectedPlaceId, setRightCollapsed])
+  }, [editingPlace, editingAssignmentId, tripId, tripStore, toast, t, setSelectedPlaceId, setRightCollapsed, assignments])
 
   const handleDeletePlace = useCallback((placeId) => {
     setDeletePlaceId(placeId)
@@ -691,7 +719,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
         )}
       </div>
 
-      <PlaceFormModal isOpen={showPlaceForm} onClose={() => { setShowPlaceForm(false); setEditingPlace(null); setEditingAssignmentId(null); setPrefillCoords(null); if (window.innerWidth < 768) setMobileSidebarOpen('right'); }} onSave={handleSavePlace} place={editingPlace} prefillCoords={prefillCoords} assignmentId={editingAssignmentId} dayAssignments={editingAssignmentId ? Object.values(assignments).flat() : []} tripId={tripId} categories={categories} onCategoryCreated={cat => tripStore.addCategory?.(cat)} />
+      <PlaceFormModal isOpen={showPlaceForm} onClose={() => { setShowPlaceForm(false); setEditingPlace(null); setEditingAssignmentId(null); setPrefillCoords(null); if (window.innerWidth < 768) setMobileSidebarOpen('right'); }} onSave={handleSavePlace} place={editingPlace} prefillCoords={prefillCoords} assignmentId={editingAssignmentId} dayAssignments={Object.values(assignments).flat()} days={days} selectedDayId={selectedDayId} tripId={tripId} categories={categories} onCategoryCreated={cat => tripStore.addCategory?.(cat)} />
       <TripFormModal isOpen={showTripForm} onClose={() => setShowTripForm(false)} onSave={async (data) => { await tripStore.updateTrip(tripId, data); toast.success(t('trip.toast.tripUpdated')) }} trip={trip} />
       <TripMembersModal isOpen={showMembersModal} onClose={() => setShowMembersModal(false)} tripId={tripId} tripTitle={trip?.title} />
       <ReservationModal isOpen={showReservationModal} onClose={() => { setShowReservationModal(false); setEditingReservation(null) }} onSave={handleSaveReservation} reservation={editingReservation} days={days} places={places} assignments={assignments} selectedDayId={selectedDayId} files={files} onFileUpload={(fd) => tripStore.addFile(tripId, fd)} onFileDelete={(id) => tripStore.deleteFile(tripId, id)} accommodations={tripAccommodations} />
