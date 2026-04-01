@@ -14,5 +14,5 @@ export function usePlaceSelection() {
     _setSelectedPlaceId(placeId)
   }, [])
 
-  return { selectedPlaceId, selectedAssignmentId, setSelectedPlaceId, selectAssignment }
+  return { selectedPlaceId, selectedAssignmentId, setSelectedPlaceId, setSelectedAssignmentId, selectAssignment }
 }

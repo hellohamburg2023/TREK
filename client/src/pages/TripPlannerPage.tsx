@@ -89,7 +89,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
     if (tabId === 'dateien' && (!files || files.length === 0)) tripStore.loadFiles?.(tripId)
   }
   const { leftWidth, rightWidth, leftCollapsed, rightCollapsed, setLeftCollapsed, setRightCollapsed, startResizeLeft, startResizeRight } = useResizablePanels()
-  const { selectedPlaceId, selectedAssignmentId, setSelectedPlaceId, selectAssignment } = usePlaceSelection()
+  const { selectedPlaceId, selectedAssignmentId, setSelectedPlaceId, setSelectedAssignmentId, selectAssignment } = usePlaceSelection()
   const [showDayDetail, setShowDayDetail] = useState<Day | null>(null)
   const [showPlaceForm, setShowPlaceForm] = useState<boolean>(false)
   const [editingPlace, setEditingPlace] = useState<Place | null>(null)
@@ -352,7 +352,21 @@ export default function TripPlannerPage(): React.ReactElement | null {
       </div>
     )
   }
-  if (!trip) return null
+  if (!trip) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb', ...fontStyle }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 14, color: '#111827', fontWeight: 600 }}>{t('trip.toast.loadError')}</span>
+          <button
+            onClick={() => navigate('/dashboard')}
+            style={{ border: '1px solid #d1d5db', borderRadius: 8, padding: '8px 14px', background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            {t('common.back')}
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', ...fontStyle }}>
