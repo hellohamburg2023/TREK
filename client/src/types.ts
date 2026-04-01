@@ -10,6 +10,8 @@ export interface User {
   created_at: string
   /** Present after load; true when TOTP MFA is enabled for password login */
   mfa_enabled?: boolean
+  /** True when a password change is required before the user can continue */
+  must_change_password?: boolean
 }
 
 export interface Trip {
@@ -20,6 +22,7 @@ export interface Trip {
   end_date: string
   cover_url: string | null
   is_archived: boolean
+  reminder_days: number
   owner_id: number
   currency?: string
   created_at: string
@@ -50,6 +53,7 @@ export interface Place {
   image_url: string | null
   google_place_id: string | null
   osm_id: string | null
+  route_geometry: string | null
   place_time: string | null
   end_time: string | null
   created_at: string
@@ -187,15 +191,22 @@ export interface Reservation {
   trip_id: number
   name: string
   title?: string
-  type: string | null
+  type: string
   status: 'pending' | 'confirmed'
   date: string | null
   time: string | null
+  reservation_time?: string | null
+  reservation_end_time?: string | null
+  location?: string | null
   confirmation_number: string | null
   notes: string | null
   url: string | null
+  day_id?: number | null
+  place_id?: number | null
+  assignment_id?: number | null
   accommodation_id?: number | null
-  metadata?: Record<string, string> | null
+  day_plan_position?: number | null
+  metadata?: Record<string, string> | string | null
   created_at: string
 }
 
@@ -217,6 +228,7 @@ export interface TripFile {
   deleted_at?: string | null
   created_at: string
   reservation_title?: string
+  linked_reservation_ids?: number[]
   url?: string
 }
 
@@ -232,6 +244,7 @@ export interface Settings {
   time_format: string
   show_place_description: boolean
   route_calculation?: boolean
+  blur_booking_codes?: boolean
 }
 
 export interface AssignmentsMap {
@@ -340,6 +353,9 @@ export interface AppConfig {
   oidc_display_name?: string
   has_maps_key?: boolean
   allowed_file_types?: string
+  timezone?: string
+  /** When true, users without MFA cannot use the app until they enable it */
+  require_mfa?: boolean
 }
 
 // Translation function type
@@ -430,7 +446,7 @@ export function getApiErrorMessage(err: unknown, fallback: string): string {
 
 // MergedItem used in day notes hook
 export interface MergedItem {
-  type: 'assignment' | 'note'
+  type: 'assignment' | 'note' | 'place' | 'transport'
   sortKey: number
-  data: Assignment | DayNote
+  data: Assignment | DayNote | Reservation
 }

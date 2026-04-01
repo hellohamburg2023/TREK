@@ -1,15 +1,25 @@
+import React from 'react'
 import ReactDOM from 'react-dom'
-import { useState } from 'react'
+import { useState, useRef, useMemo, useCallback } from 'react'
 import DOM from 'react-dom'
+<<<<<<< HEAD
 import { Search, Plus, Minus, X, CalendarDays, Pencil, Trash2, ExternalLink, Navigation } from 'lucide-react'
+=======
+import { Search, Plus, X, CalendarDays, Pencil, Trash2, ExternalLink, Navigation, Upload, ChevronDown, Check } from 'lucide-react'
+>>>>>>> upstream/dev
 import PlaceAvatar from '../shared/PlaceAvatar'
 import { getCategoryIcon } from '../shared/categoryIcons'
 import { useTranslation } from '../../i18n'
+import { useToast } from '../shared/Toast'
 import CustomSelect from '../shared/CustomSelect'
 import { useContextMenu, ContextMenu } from '../shared/ContextMenu'
+import { placesApi } from '../../api/client'
+import { useTripStore } from '../../store/tripStore'
+import { useCanDo } from '../../store/permissionsStore'
 import type { Place, Category, Day, AssignmentsMap } from '../../types'
 
 interface PlacesSidebarProps {
+  tripId: number
   places: Place[]
   categories: Category[]
   assignments: AssignmentsMap
@@ -27,35 +37,70 @@ interface PlacesSidebarProps {
   onCategoryFilterChange?: (categoryId: string) => void
 }
 
+<<<<<<< HEAD
 export default function PlacesSidebar({
   places, categories, assignments, selectedDayId, selectedPlaceId,
   onPlaceClick, onAddPlace, onAssignToDay, onRemoveAssignment, onEditPlace, onDeletePlace, onSelectDay, days, isMobile, onCategoryFilterChange,
+=======
+const PlacesSidebar = React.memo(function PlacesSidebar({
+  tripId, places, categories, assignments, selectedDayId, selectedPlaceId,
+  onPlaceClick, onAddPlace, onAssignToDay, onEditPlace, onDeletePlace, days, isMobile, onCategoryFilterChange,
+>>>>>>> upstream/dev
 }: PlacesSidebarProps) {
   const { t } = useTranslation()
+  const toast = useToast()
   const ctxMenu = useContextMenu()
+  const gpxInputRef = useRef<HTMLInputElement>(null)
+  const trip = useTripStore((s) => s.trip)
+  const loadTrip = useTripStore((s) => s.loadTrip)
+  const can = useCanDo()
+  const canEditPlaces = can('place_edit', trip)
+
+  const handleGpxImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    try {
+      const result = await placesApi.importGpx(tripId, file)
+      await loadTrip(tripId)
+      toast.success(t('places.gpxImported', { count: result.count }))
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || t('places.gpxError'))
+    }
+  }
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
-  const [categoryFilter, setCategoryFilterLocal] = useState('')
+  const [categoryFilters, setCategoryFiltersLocal] = useState<Set<string>>(new Set())
 
-  const setCategoryFilter = (val: string) => {
-    setCategoryFilterLocal(val)
-    onCategoryFilterChange?.(val)
+  const toggleCategoryFilter = (catId: string) => {
+    setCategoryFiltersLocal(prev => {
+      const next = new Set(prev)
+      if (next.has(catId)) next.delete(catId); else next.add(catId)
+      // Notify parent with first selected or empty
+      onCategoryFilterChange?.(next.size === 1 ? [...next][0] : '')
+      return next
+    })
   }
   const [dayPickerPlace, setDayPickerPlace] = useState(null)
+  const [catDropOpen, setCatDropOpen] = useState(false)
 
   // Alle geplanten Ort-IDs abrufen (einem Tag zugewiesen)
-  const plannedIds = new Set(
+  const plannedIds = useMemo(() => new Set(
     Object.values(assignments).flatMap(da => da.map(a => a.place?.id).filter(Boolean))
-  )
+  ), [assignments])
 
+<<<<<<< HEAD
   const filtered = places.filter(p => {
     if (filter === 'planned' && !plannedIds.has(p.id)) return false
+=======
+  const filtered = useMemo(() => places.filter(p => {
+>>>>>>> upstream/dev
     if (filter === 'unplanned' && plannedIds.has(p.id)) return false
-    if (categoryFilter && String(p.category_id) !== String(categoryFilter)) return false
+    if (categoryFilters.size > 0 && !categoryFilters.has(String(p.category_id))) return false
     if (search && !p.name.toLowerCase().includes(search.toLowerCase()) &&
         !(p.address || '').toLowerCase().includes(search.toLowerCase())) return false
     return true
-  })
+  }), [places, filter, categoryFilters, search, plannedIds])
 
   const isAssignedToSelectedDay = (placeId) =>
     selectedDayId && (assignments[String(selectedDayId)] || []).some(a => a.place?.id === placeId)
@@ -68,6 +113,7 @@ export default function PlacesSidebar({
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif" }}>
       {/* Kopfbereich */}
       <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--border-faint)', flexShrink: 0 }}>
+<<<<<<< HEAD
         {selectedDayLabel && days && (
           <div style={{ marginBottom: 12 }}>
             <CustomSelect
@@ -78,6 +124,9 @@ export default function PlacesSidebar({
           </div>
         )}
         <button
+=======
+        {canEditPlaces && <button
+>>>>>>> upstream/dev
           onClick={onAddPlace}
           style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -87,7 +136,22 @@ export default function PlacesSidebar({
           }}
         >
           <Plus size={14} strokeWidth={2} /> {t('places.addPlace')}
+        </button>}
+        {canEditPlaces && <>
+        <input ref={gpxInputRef} type="file" accept=".gpx" style={{ display: 'none' }} onChange={handleGpxImport} />
+        <button
+          onClick={() => gpxInputRef.current?.click()}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+            width: '100%', padding: '5px 12px', borderRadius: 8, marginBottom: 10,
+            border: '1px dashed var(--border-primary)', background: 'none',
+            color: 'var(--text-faint)', fontSize: 11, fontWeight: 500,
+            cursor: 'pointer', fontFamily: 'inherit',
+          }}
+        >
+          <Upload size={11} strokeWidth={2} /> {t('places.importGpx')}
         </button>
+        </>}
 
         {/* Filter-Tabs */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
@@ -122,21 +186,69 @@ export default function PlacesSidebar({
           )}
         </div>
 
-        {/* Kategoriefilter */}
-        {categories.length > 0 && (
-          <div style={{ marginTop: 6 }}>
-            <CustomSelect
-              value={categoryFilter}
-              onChange={setCategoryFilter}
-              placeholder={t('places.allCategories')}
-              size="sm"
-              options={[
-                { value: '', label: t('places.allCategories') },
-                ...categories.map(c => ({ value: String(c.id), label: c.name }))
-              ]}
-            />
-          </div>
-        )}
+        {/* Category multi-select dropdown */}
+        {categories.length > 0 && (() => {
+          const label = categoryFilters.size === 0
+            ? t('places.allCategories')
+            : categoryFilters.size === 1
+              ? categories.find(c => categoryFilters.has(String(c.id)))?.name || t('places.allCategories')
+              : `${categoryFilters.size} ${t('places.categoriesSelected')}`
+          return (
+            <div style={{ marginTop: 6, position: 'relative' }}>
+              <button onClick={() => setCatDropOpen(v => !v)} style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border-primary)',
+                background: 'var(--bg-card)', fontSize: 12, color: 'var(--text-primary)',
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                <ChevronDown size={12} style={{ flexShrink: 0, color: 'var(--text-faint)', transform: catDropOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+              </button>
+              {catDropOpen && (
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, marginTop: 4,
+                  background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: 10,
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.12)', padding: 4, maxHeight: 200, overflowY: 'auto',
+                }}>
+                  {categories.map(c => {
+                    const active = categoryFilters.has(String(c.id))
+                    const CatIcon = getCategoryIcon(c.icon)
+                    return (
+                      <button key={c.id} onClick={() => toggleCategoryFilter(String(c.id))} style={{
+                        display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                        padding: '6px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                        background: active ? 'var(--bg-hover)' : 'transparent',
+                        fontFamily: 'inherit', fontSize: 12, color: 'var(--text-primary)',
+                        textAlign: 'left',
+                      }}>
+                        <div style={{
+                          width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                          border: active ? 'none' : '1.5px solid var(--border-primary)',
+                          background: active ? (c.color || 'var(--accent)') : 'transparent',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          {active && <Check size={10} strokeWidth={3} color="white" />}
+                        </div>
+                        <CatIcon size={12} strokeWidth={2} color={c.color || 'var(--text-muted)'} />
+                        <span style={{ flex: 1 }}>{c.name}</span>
+                      </button>
+                    )
+                  })}
+                  {categoryFilters.size > 0 && (
+                    <button onClick={() => { setCategoryFiltersLocal(new Set()); onCategoryFilterChange?.('') }} style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                      width: '100%', padding: '6px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                      background: 'transparent', fontFamily: 'inherit', fontSize: 11, color: 'var(--text-faint)',
+                      marginTop: 2, borderTop: '1px solid var(--border-faint)',
+                    }}>
+                      <X size={10} /> {t('places.clearFilter')}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })()}
       </div>
 
       {/* Anzahl */}
@@ -151,9 +263,9 @@ export default function PlacesSidebar({
             <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>
               {filter === 'unplanned' ? t('places.allPlanned') : t('places.noneFound')}
             </span>
-            <button onClick={onAddPlace} style={{ fontSize: 12, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit' }}>
+            {canEditPlaces && <button onClick={onAddPlace} style={{ fontSize: 12, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit' }}>
               {t('places.addPlace')}
-            </button>
+            </button>}
           </div>
         ) : (
           filtered.map(place => {
@@ -181,13 +293,18 @@ export default function PlacesSidebar({
                   }
                 }}
                 onContextMenu={e => ctxMenu.open(e, [
+<<<<<<< HEAD
                   onEditPlace && { label: t('common.edit'), icon: Pencil, onClick: () => onEditPlace(place) },
                   (!inDay && selectedDayId) && { label: t('planner.addToDay'), icon: CalendarDays, onClick: () => onAssignToDay(place.id, selectedDayId) },
                   (inDay && selectedDayId && onRemoveAssignment && assignmentInSelectedDay) && { label: t('planner.removeFromDay'), icon: Minus, danger: true, onClick: () => onRemoveAssignment(selectedDayId, assignmentInSelectedDay.id) },
+=======
+                  canEditPlaces && { label: t('common.edit'), icon: Pencil, onClick: () => onEditPlace(place) },
+                  selectedDayId && { label: t('planner.addToDay'), icon: CalendarDays, onClick: () => onAssignToDay(place.id, selectedDayId) },
+>>>>>>> upstream/dev
                   place.website && { label: t('inspector.website'), icon: ExternalLink, onClick: () => window.open(place.website, '_blank') },
                   (place.lat && place.lng) && { label: 'Google Maps', icon: Navigation, onClick: () => window.open(`https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}`, '_blank') },
                   { divider: true },
-                  onDeletePlace && { label: t('common.delete'), icon: Trash2, danger: true, onClick: () => onDeletePlace(place.id) },
+                  canEditPlaces && { label: t('common.delete'), icon: Trash2, danger: true, onClick: () => onDeletePlace(place.id) },
                 ])}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10,
@@ -196,6 +313,8 @@ export default function PlacesSidebar({
                   background: isSelected ? 'var(--border-faint)' : 'transparent',
                   borderBottom: '1px solid var(--border-faint)',
                   transition: 'background 0.1s',
+                  contentVisibility: 'auto',
+                  containIntrinsicSize: '0 52px',
                 }}
                 onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--bg-hover)' }}
                 onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
@@ -356,4 +475,6 @@ export default function PlacesSidebar({
       <ContextMenu menu={ctxMenu.menu} onClose={ctxMenu.close} />
     </div>
   )
-}
+})
+
+export default PlacesSidebar

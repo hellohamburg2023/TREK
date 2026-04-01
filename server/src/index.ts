@@ -1,11 +1,15 @@
 import 'dotenv/config';
+import { JWT_SECRET_IS_GENERATED } from './config';
 import express, { Request, Response, NextFunction } from 'express';
+import { enforceGlobalMfaPolicy } from './middleware/mfaPolicy';
 import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
 import fs from 'fs';
 
 const app = express();
+const DEBUG = String(process.env.DEBUG || 'false').toLowerCase() === 'true';
+const LOG_LVL = (process.env.LOG_LEVEL || 'info').toLowerCase();
 
 // Trust first proxy (nginx/Docker) for correct req.ip
 if (process.env.NODE_ENV === 'production' || process.env.TRUST_PROXY) {
@@ -26,21 +30,18 @@ const tmpDir = path.join(__dirname, '../data/tmp');
 
 // Middleware
 const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',')
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
   : null;
 
 let corsOrigin: cors.CorsOptions['origin'];
 if (allowedOrigins) {
-  // Explicit whitelist from env var
   corsOrigin = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     if (!origin || allowedOrigins.includes(origin)) callback(null, true);
     else callback(new Error('Not allowed by CORS'));
   };
 } else if (process.env.NODE_ENV === 'production') {
-  // Production: same-origin only (Express serves the static client)
   corsOrigin = false;
 } else {
-  // Development: allow all origins (needed for Vite dev server)
   corsOrigin = true;
 }
 
@@ -54,13 +55,21 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com"],
-      imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
-      connectSrc: ["'self'", "ws:", "wss:", "https:", "http:"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      connectSrc: [
+        "'self'", "ws:", "wss:",
+        "https://nominatim.openstreetmap.org", "https://overpass-api.de",
+        "https://places.googleapis.com", "https://api.openweathermap.org",
+        "https://en.wikipedia.org", "https://commons.wikimedia.org",
+        "https://*.basemaps.cartocdn.com", "https://*.tile.openstreetmap.org",
+        "https://unpkg.com", "https://open-meteo.com", "https://api.open-meteo.com",
+        "https://geocoding-api.open-meteo.com",
+      ],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
-      objectSrc: ["'self'"],
-      frameSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameSrc: ["'none'"],
       frameAncestors: ["'self'"],
       upgradeInsecureRequests: shouldForceHttps ? [] : null
     }
@@ -79,7 +88,46 @@ if (shouldForceHttps) {
 app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: true }));
 
+app.use(enforceGlobalMfaPolicy);
+
+{
+  const { logInfo: _logInfo, logDebug: _logDebug, logWarn: _logWarn, logError: _logError } = require('./services/auditLog');
+  const SENSITIVE_KEYS = new Set(['password', 'new_password', 'current_password', 'token', 'jwt', 'authorization', 'cookie', 'client_secret', 'mfa_token', 'code', 'smtp_pass']);
+  const _redact = (value: unknown): unknown => {
+    if (!value || typeof value !== 'object') return value;
+    if (Array.isArray(value)) return value.map(_redact);
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = SENSITIVE_KEYS.has(k.toLowerCase()) ? '[REDACTED]' : _redact(v);
+    }
+    return out;
+  };
+
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path === '/api/health') return next();
+
+    const startedAt = Date.now();
+    res.on('finish', () => {
+      const ms = Date.now() - startedAt;
+
+      if (res.statusCode >= 500) {
+        _logError(`${req.method} ${req.path} ${res.statusCode} ${ms}ms ip=${req.ip}`);
+      } else if (res.statusCode === 401 || res.statusCode === 403) {
+        _logDebug(`${req.method} ${req.path} ${res.statusCode} ${ms}ms ip=${req.ip}`);
+      } else if (res.statusCode >= 400) {
+        _logWarn(`${req.method} ${req.path} ${res.statusCode} ${ms}ms ip=${req.ip}`);
+      }
+
+      const q = Object.keys(req.query).length ? ` query=${JSON.stringify(_redact(req.query))}` : '';
+      const b = req.body && Object.keys(req.body).length ? ` body=${JSON.stringify(_redact(req.body))}` : '';
+      _logDebug(`${req.method} ${req.path} ${res.statusCode} ${ms}ms ip=${req.ip}${q}${b}`);
+    });
+    next();
+  });
+}
+
 // Avatars are public (shown on login, sharing screens)
+<<<<<<< HEAD
 app.use('/uploads/avatars', express.static(path.join(__dirname, '../data/uploads/avatars')));
 
 // All other uploads require authentication
@@ -93,11 +141,27 @@ app.get('/uploads/:type/:filename', (req: Request, res: Response) => {
   const filePath = path.join(__dirname, '../data/uploads', type, safeName);
   const resolved = path.resolve(filePath);
   if (!resolved.startsWith(path.resolve(__dirname, '../data/uploads', type))) {
+=======
+import { authenticate } from './middleware/auth';
+app.use('/uploads/avatars', express.static(path.join(__dirname, '../uploads/avatars')));
+app.use('/uploads/covers', express.static(path.join(__dirname, '../uploads/covers')));
+
+// Serve uploaded photos (public — needed for shared trips)
+app.get('/uploads/photos/:filename', (req: Request, res: Response) => {
+  const safeName = path.basename(req.params.filename);
+  const filePath = path.join(__dirname, '../uploads/photos', safeName);
+  const resolved = path.resolve(filePath);
+  if (!resolved.startsWith(path.resolve(__dirname, '../uploads/photos'))) {
+>>>>>>> upstream/dev
     return res.status(403).send('Forbidden');
   }
-
   if (!fs.existsSync(resolved)) return res.status(404).send('Not found');
   res.sendFile(resolved);
+});
+
+// Block direct access to /uploads/files — served via authenticated /api/trips/:tripId/files/:id/download
+app.use('/uploads/files', (_req: Request, res: Response) => {
+  res.status(401).send('Authentication required');
 });
 
 // Routes
@@ -162,18 +226,42 @@ app.use('/api/weather', weatherRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/backup', backupRoutes);
 
+import notificationRoutes from './routes/notifications';
+app.use('/api/notifications', notificationRoutes);
+
+import shareRoutes from './routes/share';
+app.use('/api', shareRoutes);
+
+// MCP endpoint (Streamable HTTP transport, per-user auth)
+import { mcpHandler, closeMcpSessions } from './mcp';
+app.post('/mcp', mcpHandler);
+app.get('/mcp', mcpHandler);
+app.delete('/mcp', mcpHandler);
+
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
   const publicPath = path.join(__dirname, '../public');
-  app.use(express.static(publicPath));
+  app.use(express.static(publicPath, {
+    setHeaders: (res, filePath) => {
+      // Never cache index.html so version updates are picked up immediately
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
+    },
+  }));
   app.get('*', (req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(publicPath, 'index.html'));
   });
 }
 
-// Global error handler
+// Global error handler — do not leak stack traces in production
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  console.error('Unhandled error:', err);
+  if (process.env.NODE_ENV !== 'production') {
+    console.error('Unhandled error:', err);
+  } else {
+    console.error('Unhandled error:', err.message);
+  }
   res.status(500).json({ error: 'Internal server error' });
 });
 
@@ -181,13 +269,32 @@ import * as scheduler from './scheduler';
 
 const PORT = process.env.PORT || 3001;
 const server = app.listen(PORT, () => {
-  console.log(`TREK API running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  if (process.env.DEMO_MODE === 'true') console.log('Demo mode: ENABLED');
+  const { logInfo: sLogInfo, logWarn: sLogWarn } = require('./services/auditLog');
+  const tz = process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  const origins = process.env.ALLOWED_ORIGINS || '(same-origin)';
+  const banner = [
+    '──────────────────────────────────────',
+    '  TREK API started',
+    `  Port:        ${PORT}`,
+    `  Environment: ${process.env.NODE_ENV || 'development'}`,
+    `  Timezone:    ${tz}`,
+    `  Origins:     ${origins}`,
+    `  Log level:   ${LOG_LVL}`,
+    `  Log file:    /app/data/logs/trek.log`,
+    `  PID:         ${process.pid}`,
+    `  User:        uid=${process.getuid?.()} gid=${process.getgid?.()}`,
+    '──────────────────────────────────────',
+  ];
+  banner.forEach(l => console.log(l));
+  if (JWT_SECRET_IS_GENERATED) {
+    sLogWarn('[SECURITY WARNING] JWT_SECRET was auto-generated. Sessions will not persist across restarts. Set JWT_SECRET env var for production use.');
+  }
+  if (process.env.DEMO_MODE === 'true') sLogInfo('Demo mode: ENABLED');
   if (process.env.DEMO_MODE === 'true' && process.env.NODE_ENV === 'production') {
-    console.warn('[SECURITY WARNING] DEMO_MODE is enabled in production! Demo credentials are publicly exposed.');
+    sLogWarn('SECURITY WARNING: DEMO_MODE is enabled in production!');
   }
   scheduler.start();
+  scheduler.startTripReminders();
   scheduler.startDemoReset();
   import('./websocket').then(({ setupWebSocket }) => {
     setupWebSocket(server);
@@ -196,18 +303,19 @@ const server = app.listen(PORT, () => {
 
 // Graceful shutdown
 function shutdown(signal: string): void {
-  console.log(`\n${signal} received — shutting down gracefully...`);
+  const { logInfo: sLogInfo, logError: sLogError } = require('./services/auditLog');
+  sLogInfo(`${signal} received — shutting down gracefully...`);
   scheduler.stop();
+  closeMcpSessions();
   server.close(() => {
-    console.log('HTTP server closed');
+    sLogInfo('HTTP server closed');
     const { closeDb } = require('./db/database');
     closeDb();
-    console.log('Shutdown complete');
+    sLogInfo('Shutdown complete');
     process.exit(0);
   });
-  // Force exit after 10s if connections don't close
   setTimeout(() => {
-    console.error('Forced shutdown after timeout');
+    sLogError('Forced shutdown after timeout');
     process.exit(1);
   }, 10000);
 }

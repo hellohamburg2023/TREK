@@ -4,20 +4,56 @@ import jwt from 'jsonwebtoken';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { v4 as uuid } from 'uuid';
 import fetch from 'node-fetch';
 import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
 import { db } from '../db/database';
-import { authenticate, demoUploadBlock } from '../middleware/auth';
+import { authenticate, optionalAuth, demoUploadBlock } from '../middleware/auth';
 import { JWT_SECRET } from '../config';
 import { encryptMfaSecret, decryptMfaSecret } from '../services/mfaCrypto';
-import { AuthRequest, User } from '../types';
+import { getAllPermissions } from '../services/permissions';
+import { randomBytes, createHash } from 'crypto';
+import { revokeUserSessions } from '../mcp';
+import { AuthRequest, OptionalAuthRequest, User } from '../types';
+import { writeAudit, getClientIp } from '../services/auditLog';
+import { decrypt_api_key, maybe_encrypt_api_key } from '../services/apiKeyCrypto';
+import { startTripReminders } from '../scheduler';
 
 authenticator.options = { window: 1 };
 
 const MFA_SETUP_TTL_MS = 15 * 60 * 1000;
 const mfaSetupPending = new Map<number, { secret: string; exp: number }>();
+const MFA_BACKUP_CODE_COUNT = 10;
+
+function normalizeBackupCode(input: string): string {
+  return String(input || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function hashBackupCode(input: string): string {
+  return crypto.createHash('sha256').update(normalizeBackupCode(input)).digest('hex');
+}
+
+function generateBackupCodes(count = MFA_BACKUP_CODE_COUNT): string[] {
+  const codes: string[] = [];
+  while (codes.length < count) {
+    const raw = crypto.randomBytes(4).toString('hex').toUpperCase();
+    const code = `${raw.slice(0, 4)}-${raw.slice(4)}`;
+    if (!codes.includes(code)) codes.push(code);
+  }
+  return codes;
+}
+
+function parseBackupCodeHashes(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(v => typeof v === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 
 function getPendingMfaSecret(userId: number): string | null {
   const row = mfaSetupPending.get(userId);
@@ -28,6 +64,11 @@ function getPendingMfaSecret(userId: number): string | null {
   return row.secret;
 }
 
+function utcSuffix(ts: string | null | undefined): string | null {
+  if (!ts) return null;
+  return ts.endsWith('Z') ? ts : ts.replace(' ', 'T') + 'Z';
+}
+
 function stripUserForClient(user: User): Record<string, unknown> {
   const {
     password_hash: _p,
@@ -35,11 +76,16 @@ function stripUserForClient(user: User): Record<string, unknown> {
     openweather_api_key: _o,
     unsplash_api_key: _u,
     mfa_secret: _mf,
+    mfa_backup_codes: _mbc,
     ...rest
   } = user;
   return {
     ...rest,
+    created_at: utcSuffix(rest.created_at),
+    updated_at: utcSuffix(rest.updated_at),
+    last_login: utcSuffix(rest.last_login),
     mfa_enabled: !!(user.mfa_enabled === 1 || user.mfa_enabled === true),
+    must_change_password: !!(user.must_change_password === 1 || user.must_change_password === true),
   };
 }
 
@@ -108,6 +154,11 @@ function maskKey(key: string | null | undefined): string | null {
   return '----' + key.slice(-4);
 }
 
+function mask_stored_api_key(key: string | null | undefined): string | null {
+  const plain = decrypt_api_key(key);
+  return maskKey(plain);
+}
+
 function avatarUrl(user: { avatar?: string | null }): string | null {
   return user.avatar ? `/uploads/avatars/${user.avatar}` : null;
 }
@@ -116,11 +167,11 @@ function generateToken(user: { id: number | bigint }) {
   return jwt.sign(
     { id: user.id },
     JWT_SECRET,
-    { expiresIn: '24h' }
+    { expiresIn: '24h', algorithm: 'HS256' }
   );
 }
 
-router.get('/app-config', (_req: Request, res: Response) => {
+router.get('/app-config', optionalAuth, (req: Request, res: Response) => {
   const userCount = (db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number }).count;
   const setting = db.prepare("SELECT value FROM app_settings WHERE key = 'allow_registration'").get() as { value: string } | undefined;
   const allowRegistration = userCount === 0 || (setting?.value ?? 'true') === 'true';
@@ -134,18 +185,32 @@ router.get('/app-config', (_req: Request, res: Response) => {
   );
   const oidcOnlySetting = process.env.OIDC_ONLY || (db.prepare("SELECT value FROM app_settings WHERE key = 'oidc_only'").get() as { value: string } | undefined)?.value;
   const oidcOnlyMode = oidcConfigured && oidcOnlySetting === 'true';
+  const requireMfaRow = db.prepare("SELECT value FROM app_settings WHERE key = 'require_mfa'").get() as { value: string } | undefined;
+  const notifChannel = (db.prepare("SELECT value FROM app_settings WHERE key = 'notification_channel'").get() as { value: string } | undefined)?.value || 'none';
+  const tripReminderSetting = (db.prepare("SELECT value FROM app_settings WHERE key = 'notify_trip_reminder'").get() as { value: string } | undefined)?.value;
+  const hasSmtpHost = !!(process.env.SMTP_HOST || (db.prepare("SELECT value FROM app_settings WHERE key = 'smtp_host'").get() as { value: string } | undefined)?.value);
+  const hasWebhookUrl = !!(process.env.NOTIFICATION_WEBHOOK_URL || (db.prepare("SELECT value FROM app_settings WHERE key = 'notification_webhook_url'").get() as { value: string } | undefined)?.value);
+  const channelConfigured = (notifChannel === 'email' && hasSmtpHost) || (notifChannel === 'webhook' && hasWebhookUrl);
+  const tripRemindersEnabled = channelConfigured && tripReminderSetting !== 'false';
+  const setupComplete = userCount > 0 && !(db.prepare("SELECT id FROM users WHERE role = 'admin' AND must_change_password = 1 LIMIT 1").get());
   res.json({
     allow_registration: isDemo ? false : allowRegistration,
     has_users: userCount > 0,
+    setup_complete: setupComplete,
     version,
     has_maps_key: hasGoogleKey,
     oidc_configured: oidcConfigured,
     oidc_display_name: oidcConfigured ? (oidcDisplayName || 'SSO') : undefined,
     oidc_only_mode: oidcOnlyMode,
+    require_mfa: requireMfaRow?.value === 'true',
     allowed_file_types: (db.prepare("SELECT value FROM app_settings WHERE key = 'allowed_file_types'").get() as { value: string } | undefined)?.value || 'jpg,jpeg,png,gif,webp,heic,pdf,doc,docx,xls,xlsx,txt,csv',
     demo_mode: isDemo,
     demo_email: isDemo ? 'demo@trek.app' : undefined,
     demo_password: isDemo ? 'demo12345' : undefined,
+    timezone: process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+    notification_channel: notifChannel,
+    trip_reminders_enabled: tripRemindersEnabled,
+    permissions: (req as OptionalAuthRequest).user ? getAllPermissions() : undefined,
   });
 });
 
@@ -239,6 +304,7 @@ router.post('/register', authLimiter, (req: Request, res: Response) => {
       }
     }
 
+    writeAudit({ userId: Number(result.lastInsertRowid), action: 'user.register', ip: getClientIp(req), details: { username, email, role } });
     res.status(201).json({ token, user: { ...user, avatar_url: null } });
   } catch (err: unknown) {
     res.status(500).json({ error: 'Error creating user' });
@@ -258,11 +324,13 @@ router.post('/login', authLimiter, (req: Request, res: Response) => {
 
   const user = db.prepare('SELECT * FROM users WHERE LOWER(email) = LOWER(?)').get(email) as User | undefined;
   if (!user) {
+    writeAudit({ userId: null, action: 'user.login_failed', ip: getClientIp(req), details: { email, reason: 'unknown_email' } });
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
   const validPassword = bcrypt.compareSync(password, user.password_hash!);
   if (!validPassword) {
+    writeAudit({ userId: Number(user.id), action: 'user.login_failed', ip: getClientIp(req), details: { email, reason: 'wrong_password' } });
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
@@ -270,7 +338,7 @@ router.post('/login', authLimiter, (req: Request, res: Response) => {
     const mfa_token = jwt.sign(
       { id: Number(user.id), purpose: 'mfa_login' },
       JWT_SECRET,
-      { expiresIn: '5m' }
+      { expiresIn: '5m', algorithm: 'HS256' }
     );
     return res.json({ mfa_required: true, mfa_token });
   }
@@ -279,13 +347,14 @@ router.post('/login', authLimiter, (req: Request, res: Response) => {
   const token = generateToken(user);
   const userSafe = stripUserForClient(user) as Record<string, unknown>;
 
+  writeAudit({ userId: Number(user.id), action: 'user.login', ip: getClientIp(req), details: { email } });
   res.json({ token, user: { ...userSafe, avatar_url: avatarUrl(user) } });
 });
 
 router.get('/me', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const user = db.prepare(
-    'SELECT id, username, email, role, avatar, oidc_issuer, created_at, mfa_enabled FROM users WHERE id = ?'
+    'SELECT id, username, email, role, avatar, oidc_issuer, created_at, mfa_enabled, must_change_password FROM users WHERE id = ?'
   ).get(authReq.user.id) as User | undefined;
 
   if (!user) {
@@ -319,7 +388,8 @@ router.put('/me/password', authenticate, rateLimiter(5, RATE_LIMIT_WINDOW), (req
   }
 
   const hash = bcrypt.hashSync(new_password, 12);
-  db.prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(hash, authReq.user.id);
+  db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(hash, authReq.user.id);
+  writeAudit({ userId: authReq.user.id, action: 'user.password_change', ip: getClientIp(req) });
   res.json({ success: true });
 });
 
@@ -334,6 +404,7 @@ router.delete('/me', authenticate, (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Cannot delete the last admin account' });
     }
   }
+  writeAudit({ userId: authReq.user.id, action: 'user.account_delete', ip: getClientIp(req) });
   db.prepare('DELETE FROM users WHERE id = ?').run(authReq.user.id);
   res.json({ success: true });
 });
@@ -344,9 +415,9 @@ router.put('/me/maps-key', authenticate, (req: Request, res: Response) => {
 
   db.prepare(
     'UPDATE users SET maps_api_key = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-  ).run(maps_api_key || null, authReq.user.id);
+  ).run(maybe_encrypt_api_key(maps_api_key), authReq.user.id);
 
-  res.json({ success: true, maps_api_key: maps_api_key || null });
+  res.json({ success: true, maps_api_key: mask_stored_api_key(maps_api_key) });
 });
 
 router.put('/me/api-keys', authenticate, (req: Request, res: Response) => {
@@ -357,8 +428,8 @@ router.put('/me/api-keys', authenticate, (req: Request, res: Response) => {
   db.prepare(
     'UPDATE users SET maps_api_key = ?, openweather_api_key = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
   ).run(
-    maps_api_key !== undefined ? (maps_api_key || null) : current.maps_api_key,
-    openweather_api_key !== undefined ? (openweather_api_key || null) : current.openweather_api_key,
+    maps_api_key !== undefined ? maybe_encrypt_api_key(maps_api_key) : current.maps_api_key,
+    openweather_api_key !== undefined ? maybe_encrypt_api_key(openweather_api_key) : current.openweather_api_key,
     authReq.user.id
   );
 
@@ -367,7 +438,7 @@ router.put('/me/api-keys', authenticate, (req: Request, res: Response) => {
   ).get(authReq.user.id) as Pick<User, 'id' | 'username' | 'email' | 'role' | 'maps_api_key' | 'openweather_api_key' | 'avatar' | 'mfa_enabled'> | undefined;
 
   const u = updated ? { ...updated, mfa_enabled: !!(updated.mfa_enabled === 1 || updated.mfa_enabled === true) } : undefined;
-  res.json({ success: true, user: { ...u, maps_api_key: maskKey(u?.maps_api_key), openweather_api_key: maskKey(u?.openweather_api_key), avatar_url: avatarUrl(updated || {}) } });
+  res.json({ success: true, user: { ...u, maps_api_key: mask_stored_api_key(u?.maps_api_key), openweather_api_key: mask_stored_api_key(u?.openweather_api_key), avatar_url: avatarUrl(updated || {}) } });
 });
 
 router.put('/me/settings', authenticate, (req: Request, res: Response) => {
@@ -399,8 +470,8 @@ router.put('/me/settings', authenticate, (req: Request, res: Response) => {
   const updates: string[] = [];
   const params: (string | number | null)[] = [];
 
-  if (maps_api_key !== undefined) { updates.push('maps_api_key = ?'); params.push(maps_api_key || null); }
-  if (openweather_api_key !== undefined) { updates.push('openweather_api_key = ?'); params.push(openweather_api_key || null); }
+  if (maps_api_key !== undefined) { updates.push('maps_api_key = ?'); params.push(maybe_encrypt_api_key(maps_api_key)); }
+  if (openweather_api_key !== undefined) { updates.push('openweather_api_key = ?'); params.push(maybe_encrypt_api_key(openweather_api_key)); }
   if (username !== undefined) { updates.push('username = ?'); params.push(username.trim()); }
   if (email !== undefined) { updates.push('email = ?'); params.push(email.trim()); }
 
@@ -415,7 +486,7 @@ router.put('/me/settings', authenticate, (req: Request, res: Response) => {
   ).get(authReq.user.id) as Pick<User, 'id' | 'username' | 'email' | 'role' | 'maps_api_key' | 'openweather_api_key' | 'avatar' | 'mfa_enabled'> | undefined;
 
   const u = updated ? { ...updated, mfa_enabled: !!(updated.mfa_enabled === 1 || updated.mfa_enabled === true) } : undefined;
-  res.json({ success: true, user: { ...u, maps_api_key: maskKey(u?.maps_api_key), openweather_api_key: maskKey(u?.openweather_api_key), avatar_url: avatarUrl(updated || {}) } });
+  res.json({ success: true, user: { ...u, maps_api_key: mask_stored_api_key(u?.maps_api_key), openweather_api_key: mask_stored_api_key(u?.openweather_api_key), avatar_url: avatarUrl(updated || {}) } });
 });
 
 router.get('/me/settings', authenticate, (req: Request, res: Response) => {
@@ -425,7 +496,12 @@ router.get('/me/settings', authenticate, (req: Request, res: Response) => {
   ).get(authReq.user.id) as Pick<User, 'role' | 'maps_api_key' | 'openweather_api_key'> | undefined;
   if (user?.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
 
-  res.json({ settings: { maps_api_key: user.maps_api_key, openweather_api_key: user.openweather_api_key } });
+  res.json({
+    settings: {
+      maps_api_key: decrypt_api_key(user.maps_api_key),
+      openweather_api_key: decrypt_api_key(user.openweather_api_key),
+    }
+  });
 });
 
 router.post('/avatar', authenticate, demoUploadBlock, avatarUpload.single('avatar'), (req: Request, res: Response) => {
@@ -470,9 +546,21 @@ router.get('/validate-keys', authenticate, async (req: Request, res: Response) =
   const user = db.prepare('SELECT role, maps_api_key, openweather_api_key FROM users WHERE id = ?').get(authReq.user.id) as Pick<User, 'role' | 'maps_api_key' | 'openweather_api_key'> | undefined;
   if (user?.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
 
-  const result = { maps: false, weather: false };
+  const result: {
+    maps: boolean;
+    weather: boolean;
+    maps_details: null | {
+      ok: boolean;
+      status: number | null;
+      status_text: string | null;
+      error_message: string | null;
+      error_status: string | null;
+      error_raw: string | null;
+    };
+  } = { maps: false, weather: false, maps_details: null };
 
-  if (user.maps_api_key) {
+  const maps_api_key = decrypt_api_key(user.maps_api_key);
+  if (maps_api_key) {
     try {
       const mapsRes = await fetch(
         `https://places.googleapis.com/v1/places:searchText`,
@@ -480,22 +568,54 @@ router.get('/validate-keys', authenticate, async (req: Request, res: Response) =
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Goog-Api-Key': user.maps_api_key,
+            'X-Goog-Api-Key': maps_api_key,
             'X-Goog-FieldMask': 'places.displayName',
           },
           body: JSON.stringify({ textQuery: 'test' }),
         }
       );
       result.maps = mapsRes.status === 200;
+      let error_text: string | null = null;
+      let error_json: any = null;
+      if (!result.maps) {
+        try {
+          error_text = await mapsRes.text();
+          try {
+            error_json = JSON.parse(error_text);
+          } catch {
+            error_json = null;
+          }
+        } catch {
+          error_text = null;
+          error_json = null;
+        }
+      }
+      result.maps_details = {
+        ok: result.maps,
+        status: mapsRes.status,
+        status_text: mapsRes.statusText || null,
+        error_message: error_json?.error?.message || null,
+        error_status: error_json?.error?.status || null,
+        error_raw: error_text,
+      };
     } catch (err: unknown) {
       result.maps = false;
+      result.maps_details = {
+        ok: false,
+        status: null,
+        status_text: null,
+        error_message: err instanceof Error ? err.message : 'Request failed',
+        error_status: 'FETCH_ERROR',
+        error_raw: null,
+      };
     }
   }
 
-  if (user.openweather_api_key) {
+  const openweather_api_key = decrypt_api_key(user.openweather_api_key);
+  if (openweather_api_key) {
     try {
       const weatherRes = await fetch(
-        `https://api.openweathermap.org/data/2.5/weather?q=London&appid=${user.openweather_api_key}`
+        `https://api.openweathermap.org/data/2.5/weather?q=London&appid=${openweather_api_key}`
       );
       result.weather = weatherRes.status === 200;
     } catch (err: unknown) {
@@ -506,18 +626,79 @@ router.get('/validate-keys', authenticate, async (req: Request, res: Response) =
   res.json(result);
 });
 
+const ADMIN_SETTINGS_KEYS = ['allow_registration', 'allowed_file_types', 'require_mfa', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'smtp_skip_tls_verify', 'notification_webhook_url', 'notification_channel', 'notify_trip_invite', 'notify_booking_change', 'notify_trip_reminder', 'notify_vacay_invite', 'notify_photos_shared', 'notify_collab_message', 'notify_packing_tagged'];
+
+router.get('/app-settings', authenticate, (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(authReq.user.id) as { role: string } | undefined;
+  if (user?.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+
+  const result: Record<string, string> = {};
+  for (const key of ADMIN_SETTINGS_KEYS) {
+    const row = db.prepare("SELECT value FROM app_settings WHERE key = ?").get(key) as { value: string } | undefined;
+    if (row) result[key] = key === 'smtp_pass' ? '••••••••' : row.value;
+  }
+  res.json(result);
+});
+
 router.put('/app-settings', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const user = db.prepare('SELECT role FROM users WHERE id = ?').get(authReq.user.id) as { role: string } | undefined;
   if (user?.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
 
-  const { allow_registration, allowed_file_types } = req.body;
-  if (allow_registration !== undefined) {
-    db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('allow_registration', ?)").run(String(allow_registration));
+  const { require_mfa } = req.body as Record<string, unknown>;
+
+  if (require_mfa === true || require_mfa === 'true') {
+    const adminMfa = db.prepare('SELECT mfa_enabled FROM users WHERE id = ?').get(authReq.user.id) as { mfa_enabled: number } | undefined;
+    if (!(adminMfa?.mfa_enabled === 1)) {
+      return res.status(400).json({
+        error: 'Enable two-factor authentication on your own account before requiring it for all users.',
+      });
+    }
   }
-  if (allowed_file_types !== undefined) {
-    db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('allowed_file_types', ?)").run(String(allowed_file_types));
+
+  for (const key of ADMIN_SETTINGS_KEYS) {
+    if (req.body[key] !== undefined) {
+      let val = String(req.body[key]);
+      if (key === 'require_mfa') {
+        val = req.body[key] === true || val === 'true' ? 'true' : 'false';
+      }
+      // Don't save masked password
+      if (key === 'smtp_pass' && val === '••••••••') continue;
+      db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)").run(key, val);
+    }
   }
+  const changedKeys = ADMIN_SETTINGS_KEYS.filter(k => req.body[k] !== undefined && !(k === 'smtp_pass' && String(req.body[k]) === '••••••••'));
+
+  const summary: Record<string, unknown> = {};
+  const smtpChanged = changedKeys.some(k => k.startsWith('smtp_'));
+  const eventsChanged = changedKeys.some(k => k.startsWith('notify_'));
+  if (changedKeys.includes('notification_channel')) summary.notification_channel = req.body.notification_channel;
+  if (changedKeys.includes('notification_webhook_url')) summary.webhook_url_updated = true;
+  if (smtpChanged) summary.smtp_settings_updated = true;
+  if (eventsChanged) summary.notification_events_updated = true;
+  if (changedKeys.includes('allow_registration')) summary.allow_registration = req.body.allow_registration;
+  if (changedKeys.includes('allowed_file_types')) summary.allowed_file_types_updated = true;
+  if (changedKeys.includes('require_mfa')) summary.require_mfa = req.body.require_mfa;
+
+  const debugDetails: Record<string, unknown> = {};
+  for (const k of changedKeys) {
+    debugDetails[k] = k === 'smtp_pass' ? '***' : req.body[k];
+  }
+
+  writeAudit({
+    userId: authReq.user.id,
+    action: 'settings.app_update',
+    ip: getClientIp(req),
+    details: summary,
+    debugDetails,
+  });
+
+  const notifRelated = ['notification_channel', 'notification_webhook_url', 'smtp_host', 'notify_trip_reminder'];
+  if (changedKeys.some(k => notifRelated.includes(k))) {
+    startTripReminders();
+  }
+
   res.json({ success: true });
 });
 
@@ -601,7 +782,7 @@ router.post('/mfa/verify-login', authLimiter, (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Verification token and code are required' });
   }
   try {
-    const decoded = jwt.verify(mfa_token, JWT_SECRET) as { id: number; purpose?: string };
+    const decoded = jwt.verify(mfa_token, JWT_SECRET, { algorithms: ['HS256'] }) as { id: number; purpose?: string };
     if (decoded.purpose !== 'mfa_login') {
       return res.status(401).json({ error: 'Invalid verification token' });
     }
@@ -610,14 +791,25 @@ router.post('/mfa/verify-login', authLimiter, (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid session' });
     }
     const secret = decryptMfaSecret(user.mfa_secret);
-    const tokenStr = String(code).replace(/\s/g, '');
-    const ok = authenticator.verify({ token: tokenStr, secret });
-    if (!ok) {
-      return res.status(401).json({ error: 'Invalid verification code' });
+    const tokenStr = String(code).trim();
+    const okTotp = authenticator.verify({ token: tokenStr.replace(/\s/g, ''), secret });
+    if (!okTotp) {
+      const hashes = parseBackupCodeHashes(user.mfa_backup_codes);
+      const candidateHash = hashBackupCode(tokenStr);
+      const idx = hashes.findIndex(h => h === candidateHash);
+      if (idx === -1) {
+        return res.status(401).json({ error: 'Invalid verification code' });
+      }
+      hashes.splice(idx, 1);
+      db.prepare('UPDATE users SET mfa_backup_codes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
+        JSON.stringify(hashes),
+        user.id
+      );
     }
     db.prepare('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?').run(user.id);
     const sessionToken = generateToken(user);
     const userSafe = stripUserForClient(user) as Record<string, unknown>;
+    writeAudit({ userId: Number(user.id), action: 'user.login', ip: getClientIp(req), details: { mfa: true } });
     res.json({ token: sessionToken, user: { ...userSafe, avatar_url: avatarUrl(user) } });
   } catch {
     return res.status(401).json({ error: 'Invalid or expired verification token' });
@@ -667,19 +859,27 @@ router.post('/mfa/enable', authenticate, (req: Request, res: Response) => {
   if (!ok) {
     return res.status(401).json({ error: 'Invalid verification code' });
   }
+  const backupCodes = generateBackupCodes();
+  const backupHashes = backupCodes.map(hashBackupCode);
   const enc = encryptMfaSecret(pending);
-  db.prepare('UPDATE users SET mfa_enabled = 1, mfa_secret = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
+  db.prepare('UPDATE users SET mfa_enabled = 1, mfa_secret = ?, mfa_backup_codes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
     enc,
+    JSON.stringify(backupHashes),
     authReq.user.id
   );
   mfaSetupPending.delete(authReq.user.id);
-  res.json({ success: true, mfa_enabled: true });
+  writeAudit({ userId: authReq.user.id, action: 'user.mfa_enable', ip: getClientIp(req) });
+  res.json({ success: true, mfa_enabled: true, backup_codes: backupCodes });
 });
 
 router.post('/mfa/disable', authenticate, rateLimiter(5, RATE_LIMIT_WINDOW), (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   if (process.env.DEMO_MODE === 'true' && authReq.user.email === 'demo@nomad.app') {
     return res.status(403).json({ error: 'MFA cannot be changed in demo mode.' });
+  }
+  const policy = db.prepare("SELECT value FROM app_settings WHERE key = 'require_mfa'").get() as { value: string } | undefined;
+  if (policy?.value === 'true') {
+    return res.status(403).json({ error: 'Two-factor authentication cannot be disabled while it is required for all users.' });
   }
   const { password, code } = req.body as { password?: string; code?: string };
   if (!password || !code) {
@@ -698,11 +898,56 @@ router.post('/mfa/disable', authenticate, rateLimiter(5, RATE_LIMIT_WINDOW), (re
   if (!ok) {
     return res.status(401).json({ error: 'Invalid verification code' });
   }
-  db.prepare('UPDATE users SET mfa_enabled = 0, mfa_secret = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
+  db.prepare('UPDATE users SET mfa_enabled = 0, mfa_secret = NULL, mfa_backup_codes = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
     authReq.user.id
   );
   mfaSetupPending.delete(authReq.user.id);
+  writeAudit({ userId: authReq.user.id, action: 'user.mfa_disable', ip: getClientIp(req) });
   res.json({ success: true, mfa_enabled: false });
+});
+
+// --- MCP Token Management ---
+
+router.get('/mcp-tokens', authenticate, (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  const tokens = db.prepare(
+    'SELECT id, name, token_prefix, created_at, last_used_at FROM mcp_tokens WHERE user_id = ? ORDER BY created_at DESC'
+  ).all(authReq.user.id);
+  res.json({ tokens });
+});
+
+router.post('/mcp-tokens', authenticate, rateLimiter(5, RATE_LIMIT_WINDOW), (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  const { name } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'Token name is required' });
+  if (name.trim().length > 100) return res.status(400).json({ error: 'Token name must be 100 characters or less' });
+
+  const tokenCount = (db.prepare('SELECT COUNT(*) as count FROM mcp_tokens WHERE user_id = ?').get(authReq.user.id) as { count: number }).count;
+  if (tokenCount >= 10) return res.status(400).json({ error: 'Maximum of 10 tokens per user reached' });
+
+  const rawToken = 'trek_' + randomBytes(24).toString('hex');
+  const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+  const tokenPrefix = rawToken.slice(0, 13); // "trek_" + 8 hex chars
+
+  const result = db.prepare(
+    'INSERT INTO mcp_tokens (user_id, name, token_hash, token_prefix) VALUES (?, ?, ?, ?)'
+  ).run(authReq.user.id, name.trim(), tokenHash, tokenPrefix);
+
+  const token = db.prepare(
+    'SELECT id, name, token_prefix, created_at, last_used_at FROM mcp_tokens WHERE id = ?'
+  ).get(result.lastInsertRowid);
+
+  res.status(201).json({ token: { ...(token as object), raw_token: rawToken } });
+});
+
+router.delete('/mcp-tokens/:id', authenticate, (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  const { id } = req.params;
+  const token = db.prepare('SELECT id FROM mcp_tokens WHERE id = ? AND user_id = ?').get(id, authReq.user.id);
+  if (!token) return res.status(404).json({ error: 'Token not found' });
+  db.prepare('DELETE FROM mcp_tokens WHERE id = ?').run(id);
+  revokeUserSessions(authReq.user.id);
+  res.json({ success: true });
 });
 
 export default router;

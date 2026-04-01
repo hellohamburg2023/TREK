@@ -3,11 +3,20 @@ import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
 const sizeClasses: Record<string, string> = {
+<<<<<<< HEAD
   sm: 'sm:max-w-sm',
   md: 'sm:max-w-md',
   lg: 'sm:max-w-lg',
   xl: 'sm:max-w-2xl',
   '2xl': 'sm:max-w-4xl',
+=======
+  sm: 'max-w-sm',
+  md: 'max-w-md',
+  lg: 'max-w-lg',
+  xl: 'max-w-2xl',
+  '2xl': 'max-w-4xl',
+  '3xl': 'max-w-5xl',
+>>>>>>> upstream/dev
 }
 
 interface ModalProps {
