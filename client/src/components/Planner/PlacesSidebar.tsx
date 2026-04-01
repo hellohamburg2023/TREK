@@ -1,6 +1,5 @@
 import ReactDOM from 'react-dom'
 import { useState } from 'react'
-import DOM from 'react-dom'
 import { Search, Plus, Minus, X, CalendarDays, Pencil, Trash2, ExternalLink, Navigation } from 'lucide-react'
 import PlaceAvatar from '../shared/PlaceAvatar'
 import { getCategoryIcon } from '../shared/categoryIcons'
@@ -41,7 +40,7 @@ export default function PlacesSidebar({
     setCategoryFilterLocal(val)
     onCategoryFilterChange?.(val)
   }
-  const [dayPickerPlace, setDayPickerPlace] = useState(null)
+  const [dayPickerPlace, setDayPickerPlace] = useState<Place | null>(null)
 
   // Alle geplanten Ort-IDs abrufen (einem Tag zugewiesen)
   const plannedIds = new Set(
@@ -314,25 +313,36 @@ export default function PlacesSidebar({
               {days.map((day, i) => {
                 const assigned = (assignments[String(day.id)] || []).find(a => a.place?.id === dayPickerPlace.id)
                 return (
-                  <button
+                  <label
                     key={day.id}
-                    onClick={() => { 
-                      if (assigned && onRemoveAssignment) {
-                        onRemoveAssignment(day.id, assigned.id)
-                      } else {
-                        onAssignToDay(dayPickerPlace.id, day.id)
-                      }
-                      setDayPickerPlace(null) 
-                    }}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                      padding: '12px 14px', borderRadius: 12, border: 'none', cursor: 'pointer',
+                      padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
                       background: 'transparent', fontFamily: 'inherit', textAlign: 'left',
                       transition: 'background 0.1s',
                     }}
                     onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
+                    <input
+                      type="checkbox"
+                      checked={Boolean(assigned)}
+                      onChange={() => {
+                      if (assigned && onRemoveAssignment) {
+                        onRemoveAssignment(day.id, assigned.id)
+                      } else {
+                        onAssignToDay(dayPickerPlace.id, day.id)
+                      }
+                    }}
+                    style={{
+                      width: 18,
+                      height: 18,
+                      margin: 0,
+                      accentColor: 'var(--accent)',
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                    }}
+                  />
                     <div style={{
                       width: 32, height: 32, borderRadius: '50%', background: 'var(--bg-tertiary)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -344,8 +354,8 @@ export default function PlacesSidebar({
                       </div>
                       {day.date && <div style={{ fontSize: 11, color: 'var(--text-faint)' }}>{new Date(day.date + 'T00:00:00').toLocaleDateString()}</div>}
                     </div>
-                    {assigned && <span style={{ fontSize: 11, color: 'var(--text-faint)' }}><Minus size={16} /></span>}
-                  </button>
+                    {assigned && <span style={{ fontSize: 11, color: '#16a34a' }}>✓</span>}
+                  </label>
                 )
               })}
             </div>
