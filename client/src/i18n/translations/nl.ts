@@ -582,7 +582,7 @@ const nl: Record<string, string> = {
   'trip.tabs.files': 'Bestanden',
   'trip.loading': 'Reis laden...',
   'trip.mobilePlan': 'Plan',
-  'trip.mobilePlaces': 'Plaatsen',
+  'trip.mobilePlaces': 'Organisatie',
   'trip.toast.placeUpdated': 'Plaats bijgewerkt',
   'trip.toast.placeAdded': 'Plaats toegevoegd',
   'trip.toast.placeDeleted': 'Plaats verwijderd',

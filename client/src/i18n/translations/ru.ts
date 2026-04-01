@@ -582,7 +582,7 @@ const ru: Record<string, string> = {
   'trip.tabs.files': 'Файлы',
   'trip.loading': 'Загрузка поездки...',
   'trip.mobilePlan': 'План',
-  'trip.mobilePlaces': 'Места',
+  'trip.mobilePlaces': 'Организация',
   'trip.toast.placeUpdated': 'Место обновлено',
   'trip.toast.placeAdded': 'Место добавлено',
   'trip.toast.placeDeleted': 'Место удалено',

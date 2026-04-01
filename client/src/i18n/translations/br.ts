@@ -591,7 +591,7 @@ const br: Record<string, string | { name: string; category: string }[]> = {
   'trip.tabs.files': 'Arquivos',
   'trip.loading': 'Carregando viagem...',
   'trip.mobilePlan': 'Plano',
-  'trip.mobilePlaces': 'Lugares',
+  'trip.mobilePlaces': 'Organização',
   'trip.toast.placeUpdated': 'Lugar atualizado',
   'trip.toast.placeAdded': 'Lugar adicionado',
   'trip.toast.placeDeleted': 'Lugar excluído',

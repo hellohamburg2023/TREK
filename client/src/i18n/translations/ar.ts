@@ -588,7 +588,7 @@ const ar: Record<string, string | { name: string; category: string }[]> = {
   'trip.tabs.files': 'الملفات',
   'trip.loading': 'جارٍ تحميل الرحلة...',
   'trip.mobilePlan': 'الخطة',
-  'trip.mobilePlaces': 'الأماكن',
+  'trip.mobilePlaces': 'تنظيم',
   'trip.toast.placeUpdated': 'تم تحديث المكان',
   'trip.toast.placeAdded': 'تمت إضافة المكان',
   'trip.toast.placeDeleted': 'تم حذف المكان',

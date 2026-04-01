@@ -561,7 +561,7 @@ const es: Record<string, string> = {
   'trip.tabs.files': 'Archivos',
   'trip.loading': 'Cargando viaje...',
   'trip.mobilePlan': 'Plan',
-  'trip.mobilePlaces': 'Lugares',
+  'trip.mobilePlaces': 'Organización',
   'trip.toast.placeUpdated': 'Lugar actualizado',
   'trip.toast.placeAdded': 'Lugar añadido',
   'trip.toast.placeDeleted': 'Lugar eliminado',

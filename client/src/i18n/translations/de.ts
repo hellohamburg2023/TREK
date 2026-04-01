@@ -644,7 +644,7 @@ const de: Record<string, string | { name: string; category: string }[]> = {
   'trip.tabs.files': 'Dateien',
   'trip.loading': 'Reise wird geladen...',
   'trip.mobilePlan': 'Planung',
-  'trip.mobilePlaces': 'Orte',
+  'trip.mobilePlaces': 'Organisation',
   'trip.toast.placeUpdated': 'Ort aktualisiert',
   'trip.toast.placeAdded': 'Ort hinzugefügt',
   'trip.toast.placeDeleted': 'Ort gelöscht',

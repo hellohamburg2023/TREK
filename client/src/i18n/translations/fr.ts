@@ -590,7 +590,7 @@ const fr: Record<string, string> = {
   'trip.tabs.files': 'Fichiers',
   'trip.loading': 'Chargement du voyage…',
   'trip.mobilePlan': 'Plan',
-  'trip.mobilePlaces': 'Lieux',
+  'trip.mobilePlaces': 'Organisation',
   'trip.toast.placeUpdated': 'Lieu mis à jour',
   'trip.toast.placeAdded': 'Lieu ajouté',
   'trip.toast.placeDeleted': 'Lieu supprimé',

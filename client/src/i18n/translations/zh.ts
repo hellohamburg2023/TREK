@@ -582,7 +582,7 @@ const zh: Record<string, string> = {
   'trip.tabs.files': '文件',
   'trip.loading': '加载旅行中...',
   'trip.mobilePlan': '计划',
-  'trip.mobilePlaces': '地点',
+  'trip.mobilePlaces': '组织',
   'trip.toast.placeUpdated': '地点已更新',
   'trip.toast.placeAdded': '地点已添加',
   'trip.toast.placeDeleted': '地点已删除',

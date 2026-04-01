@@ -73,7 +73,10 @@ export default function PlaceFormModal({
 
   useEffect(() => {
     if (place) {
+      // Use assignment-specific times (COALESCED from assignment_time) if editing within an assignment context
       const currentAssignment = assignmentId ? dayAssignments.find(a => a.id === assignmentId) : null
+      const assignmentPlaceTime = currentAssignment?.place?.place_time ?? place.place_time ?? ''
+      const assignmentEndTime = currentAssignment?.place?.end_time ?? place.end_time ?? ''
       setForm({
         name: place.name || '',
         description: place.description || '',
@@ -81,8 +84,8 @@ export default function PlaceFormModal({
         lat: place.lat || '',
         lng: place.lng || '',
         category_id: place.category_id || '',
-        place_time: place.place_time || '',
-        end_time: place.end_time || '',
+        place_time: assignmentPlaceTime,
+        end_time: assignmentEndTime,
         day_id: currentAssignment?.day_id ? String(currentAssignment.day_id) : '',
         notes: place.notes || '',
         transport_mode: place.transport_mode || 'walking',
@@ -98,10 +101,8 @@ export default function PlaceFormModal({
         address: prefillCoords.address || '',
       })
     } else {
-      setForm({
-        ...DEFAULT_FORM,
-        day_id: selectedDayId ? String(selectedDayId) : '',
-      })
+      // New place: start with empty day_id so user chooses explicitly
+      setForm({ ...DEFAULT_FORM })
     }
     setPendingFiles([])
   }, [place, prefillCoords, isOpen, selectedDayId, assignmentId, dayAssignments])

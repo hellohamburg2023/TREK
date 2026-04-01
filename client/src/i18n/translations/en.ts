@@ -648,7 +648,7 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'trip.tabs.files': 'Files',
   'trip.loading': 'Loading trip...',
   'trip.mobilePlan': 'Plan',
-  'trip.mobilePlaces': 'Places',
+  'trip.mobilePlaces': 'Organisation',
   'trip.toast.placeUpdated': 'Place updated',
   'trip.toast.placeAdded': 'Place added',
   'trip.toast.placeDeleted': 'Place deleted',
