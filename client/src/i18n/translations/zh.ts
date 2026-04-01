@@ -621,7 +621,9 @@ const zh: Record<string, string> = {
 
   // Places Sidebar
   'places.addPlace': '添加地点/活动',
-  'places.assignToDay': '添加到哪一天？',
+  'places.addToAllDays': '添加到所有天',
+  'places.multiDay': '多天',
+  'places.assignToDay': '添加/移除至指定日',
   'places.all': '全部',
   'places.planned': '已规划',
   'places.unplanned': '未规划',
@@ -656,6 +658,7 @@ const zh: Record<string, string> = {
   'places.mapsSearchError': '地点搜索失败。',
   'places.osmHint': '使用 OpenStreetMap 搜索（无照片、营业时间或评分）。在设置中添加 Google API 密钥以获取完整信息。',
   'places.osmActive': '通过 OpenStreetMap 搜索（无照片、评分或营业时间）。在设置中添加 Google API 密钥以获取增强数据。',
+  'places.googleActive': '通过 Google Maps 搜索（含照片、评分及营业时间）。',
   'places.categoryCreateError': '创建分类失败',
   'places.nameRequired': '请输入名称',
   'places.saveError': '保存失败',

@@ -46,6 +46,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       settings: { ...state.settings, [key]: value },
     }))
     if (key === 'language') localStorage.setItem('app_language', value as string)
+    if (!localStorage.getItem('auth_token')) return
     try {
       await settingsApi.set(key, value)
     } catch (err: unknown) {

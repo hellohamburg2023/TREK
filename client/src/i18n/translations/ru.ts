@@ -621,7 +621,9 @@ const ru: Record<string, string> = {
 
   // Places Sidebar
   'places.addPlace': 'Добавить место/активность',
-  'places.assignToDay': 'Добавить в какой день?',
+  'places.addToAllDays': 'Добавить ко всем дням',
+  'places.multiDay': 'Многодневный',
+  'places.assignToDay': 'Добавить/удалить из дня',
   'places.all': 'Все',
   'places.planned': 'Запланированные',
   'places.unplanned': 'Незапланированные',
@@ -656,6 +658,7 @@ const ru: Record<string, string> = {
   'places.mapsSearchError': 'Ошибка поиска мест.',
   'places.osmHint': 'Поиск через OpenStreetMap (без фото, часов работы и рейтингов). Добавьте API-ключ Google в настройках для полной информации.',
   'places.osmActive': 'Поиск через OpenStreetMap (без фото, рейтингов и часов работы). Добавьте API-ключ Google в настройках для расширенных данных.',
+  'places.googleActive': 'Поиск через Google Maps (фото, рейтинги & часы работы активны).',
   'places.categoryCreateError': 'Не удалось создать категорию',
   'places.nameRequired': 'Введите название',
   'places.saveError': 'Ошибка сохранения',

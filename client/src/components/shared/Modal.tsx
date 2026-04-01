@@ -8,6 +8,7 @@ const sizeClasses: Record<string, string> = {
   lg: 'sm:max-w-lg',
   xl: 'sm:max-w-2xl',
   '2xl': 'sm:max-w-4xl',
+  '3xl': 'sm:max-w-5xl',
 }
 
 interface ModalProps {

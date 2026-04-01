@@ -207,6 +207,7 @@ export const reservationsApi = {
   create: (tripId: number | string, data: Record<string, unknown>) => apiClient.post(`/trips/${tripId}/reservations`, data).then(r => r.data),
   update: (tripId: number | string, id: number, data: Record<string, unknown>) => apiClient.put(`/trips/${tripId}/reservations/${id}`, data).then(r => r.data),
   delete: (tripId: number | string, id: number) => apiClient.delete(`/trips/${tripId}/reservations/${id}`).then(r => r.data),
+  updatePositions: (tripId: number | string, positions: { id: number; day_plan_position: number }[]) => apiClient.put(`/trips/${tripId}/reservations/positions`, { positions }).then(r => r.data),
 }
 
 export const weatherApi = {
@@ -292,6 +293,14 @@ export const backupApi = {
   },
   getAutoSettings: () => apiClient.get('/backup/auto-settings').then(r => r.data),
   setAutoSettings: (settings: Record<string, unknown>) => apiClient.put('/backup/auto-settings', settings).then(r => r.data),
+}
+
+export const shareApi = {
+  getLinks: (tripId: number | string) => apiClient.get(`/trips/${tripId}/share-link`).then(r => r.data),
+  createLink: (tripId: number | string, data?: Record<string, unknown>) => apiClient.post(`/trips/${tripId}/share-link`, data || {}).then(r => r.data),
+  updateLink: (tripId: number | string, id: number, data: Record<string, unknown>) => apiClient.put(`/trips/${tripId}/share-link/${id}`, data).then(r => r.data),
+  deleteLink: (tripId: number | string, id: number) => apiClient.delete(`/trips/${tripId}/share-link/${id}`).then(r => r.data),
+  getSharedTrip: (token: string) => apiClient.get(`/shared/${token}`).then(r => r.data),
 }
 
 export default apiClient

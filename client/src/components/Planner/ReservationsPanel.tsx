@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import ReactDOM from 'react-dom'
 import { useTripStore } from '../../store/tripStore'
 import { useSettingsStore } from '../../store/settingsStore'
 import { useToast } from '../shared/Toast'
@@ -50,8 +51,6 @@ function buildAssignmentLookup(days, assignments) {
 interface ReservationCardProps {
   r: Reservation
   tripId: number
-  days: Day[]
-  accommodations: any[]
   onEdit: (reservation: Reservation) => void
   onDelete: (id: number) => void
   files?: TripFile[]
@@ -59,7 +58,7 @@ interface ReservationCardProps {
   assignmentLookup: Record<number, AssignmentLookupEntry>
 }
 
-function ReservationCard({ r, tripId, days, accommodations, onEdit, onDelete, files = [], onNavigateToFiles, assignmentLookup }: ReservationCardProps) {
+function ReservationCard({ r, tripId, onEdit, onDelete, files = [], onNavigateToFiles, assignmentLookup }: ReservationCardProps) {
   const { toggleReservationStatus } = useTripStore()
   const toast = useToast()
   const { t, locale } = useTranslation()
@@ -69,20 +68,14 @@ function ReservationCard({ r, tripId, days, accommodations, onEdit, onDelete, fi
   const confirmed = r.status === 'confirmed'
   const attachedFiles = files.filter(f => f.reservation_id === r.id || (f.linked_reservation_ids || []).includes(r.id))
   const linked = r.assignment_id ? assignmentLookup[r.assignment_id] : null
-
-  // Resolve hotel dates from accommodation if missing reservation_time
-  const accInfo = r.type === 'hotel' && r.accommodation_id ? accommodations?.find(a => a.id === r.accommodation_id) : null
-  const hotelStartDay = accInfo ? days.find(d => d.id === accInfo.start_day_id) : null
-  const hotelEndDay = accInfo ? days.find(d => d.id === accInfo.end_day_id) : null
-  const effResTime = r.reservation_time || (hotelStartDay?.date ? hotelStartDay.date : null)
-  const effResEndTime = r.reservation_end_time || (hotelEndDay?.date && hotelEndDay.id !== hotelStartDay?.id ? hotelEndDay.date : null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const handleToggle = async () => {
     try { await toggleReservationStatus(tripId, r.id) }
     catch { toast.error(t('reservations.toast.updateError')) }
   }
   const handleDelete = async () => {
-    if (!confirm(t('reservations.confirm.delete', { name: r.title }))) return
+    setShowDeleteConfirm(false)
     try { await onDelete(r.id) } catch { toast.error(t('reservations.toast.deleteError')) }
   }
 
@@ -113,7 +106,7 @@ function ReservationCard({ r, tripId, days, accommodations, onEdit, onDelete, fi
           onMouseLeave={e => e.currentTarget.style.color = 'var(--text-faint)'}>
           <Pencil size={11} />
         </button>
-        <button onClick={handleDelete} title={t('common.delete')} style={{ padding: 3, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', display: 'flex', flexShrink: 0 }}
+        <button onClick={() => setShowDeleteConfirm(true)} title={t('common.delete')} style={{ padding: 3, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', display: 'flex', flexShrink: 0 }}
           onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
           onMouseLeave={e => e.currentTarget.style.color = 'var(--text-faint)'}>
           <Trash2 size={11} />
@@ -121,39 +114,22 @@ function ReservationCard({ r, tripId, days, accommodations, onEdit, onDelete, fi
       </div>
 
       {/* Details */}
-      {(effResTime || r.confirmation_number || r.location || linked || r.metadata) && (
+      {(r.reservation_time || r.confirmation_number || r.location || linked || r.metadata) && (
         <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
           {/* Row 1: Date, Time, Code */}
-          {(effResTime || r.confirmation_number) && (
+          {(r.reservation_time || r.confirmation_number) && (
             <div style={{ display: 'flex', gap: 0, borderRadius: 8, overflow: 'hidden', background: 'var(--bg-secondary)', boxShadow: '0 1px 6px rgba(0,0,0,0.08)' }}>
-              {effResTime && (
+              {r.reservation_time && (
                 <div style={{ flex: 1, padding: '5px 10px', textAlign: 'center', borderRight: '1px solid var(--border-faint)' }}>
                   <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('reservations.date')}</div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginTop: 1 }}>
-                    {fmtDate(effResTime)}
-                    {(() => {
-                      if (!effResEndTime) return ''
-                      const p = effResEndTime.split('T')
-                      if (p[0] && p[0].includes('-')) {
-                        const ed = fmtDate(p[0])
-                        return ed !== fmtDate(effResTime) ? ` – ${ed}` : ''
-                      }
-                      return ''
-                    })()}
-                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginTop: 1 }}>{fmtDate(r.reservation_time)}</div>
                 </div>
               )}
-              {effResTime?.includes('T') && (
+              {r.reservation_time?.includes('T') && (
                 <div style={{ flex: 1, padding: '5px 10px', textAlign: 'center', borderRight: '1px solid var(--border-faint)' }}>
                   <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('reservations.time')}</div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginTop: 1 }}>
-                    {fmtTime(effResTime)}
-                    {(() => {
-                      if (!effResEndTime) return ''
-                      const p = effResEndTime.split('T')
-                      const t = p.length > 1 ? p[1] : (p[0] && !p[0].includes('-') ? p[0] : '')
-                      return t ? ` – ${t}` : ''
-                    })()}
+                    {fmtTime(r.reservation_time)}{r.reservation_end_time ? ` – ${r.reservation_end_time}` : ''}
                   </div>
                 </div>
               )}
@@ -253,6 +229,46 @@ function ReservationCard({ r, tripId, days, accommodations, onEdit, onDelete, fi
           </div>
         </div>
       )}
+      {/* Delete confirmation popup */}
+      {showDeleteConfirm && ReactDOM.createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(3px)',
+        }} onClick={() => setShowDeleteConfirm(false)}>
+          <div style={{
+            width: 340, background: 'var(--bg-card)', borderRadius: 16,
+            boxShadow: '0 16px 48px rgba(0,0,0,0.22)', padding: '22px 22px 18px',
+            display: 'flex', flexDirection: 'column', gap: 12,
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{
+                width: 36, height: 36, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                borderRadius: '50%', background: 'rgba(239,68,68,0.12)',
+              }}>
+                <Trash2 size={18} strokeWidth={1.8} color="#ef4444" />
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+                {t('reservations.confirm.deleteTitle')}
+              </div>
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              {t('reservations.confirm.deleteBody', { name: r.title })}
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+              <button onClick={() => setShowDeleteConfirm(false)} style={{
+                fontSize: 12, background: 'none', border: '1px solid var(--border-primary)',
+                borderRadius: 8, padding: '6px 14px', cursor: 'pointer', color: 'var(--text-muted)', fontFamily: 'inherit',
+              }}>{t('common.cancel')}</button>
+              <button onClick={handleDelete} style={{
+                fontSize: 12, background: '#ef4444', color: 'white',
+                border: 'none', borderRadius: 8, padding: '6px 16px', cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit',
+              }}>{t('common.confirm')}</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }
@@ -291,7 +307,6 @@ interface ReservationsPanelProps {
   reservations: Reservation[]
   days: Day[]
   assignments: AssignmentsMap
-  accommodations?: any[]
   files?: TripFile[]
   onAdd: () => void
   onEdit: (reservation: Reservation) => void
@@ -299,7 +314,7 @@ interface ReservationsPanelProps {
   onNavigateToFiles: () => void
 }
 
-export default function ReservationsPanel({ tripId, reservations, days, assignments, accommodations = [], files = [], onAdd, onEdit, onDelete, onNavigateToFiles }: ReservationsPanelProps) {
+export default function ReservationsPanel({ tripId, reservations, days, assignments, files = [], onAdd, onEdit, onDelete, onNavigateToFiles }: ReservationsPanelProps) {
   const { t, locale } = useTranslation()
   const [showHint, setShowHint] = useState(() => !localStorage.getItem('hideReservationHint'))
 
@@ -341,14 +356,14 @@ export default function ReservationsPanel({ tripId, reservations, days, assignme
             {allPending.length > 0 && (
               <Section title={t('reservations.pending')} count={allPending.length} accent="gray">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  {allPending.map(r => <ReservationCard key={r.id} r={r} tripId={tripId} days={days} accommodations={accommodations} onEdit={onEdit} onDelete={onDelete} files={files} onNavigateToFiles={onNavigateToFiles} assignmentLookup={assignmentLookup} />)}
+                  {allPending.map(r => <ReservationCard key={r.id} r={r} tripId={tripId} onEdit={onEdit} onDelete={onDelete} files={files} onNavigateToFiles={onNavigateToFiles} assignmentLookup={assignmentLookup} />)}
                 </div>
               </Section>
             )}
             {allConfirmed.length > 0 && (
               <Section title={t('reservations.confirmed')} count={allConfirmed.length} accent="green">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  {allConfirmed.map(r => <ReservationCard key={r.id} r={r} tripId={tripId} days={days} accommodations={accommodations} onEdit={onEdit} onDelete={onDelete} files={files} onNavigateToFiles={onNavigateToFiles} assignmentLookup={assignmentLookup} />)}
+                  {allConfirmed.map(r => <ReservationCard key={r.id} r={r} tripId={tripId} onEdit={onEdit} onDelete={onDelete} files={files} onNavigateToFiles={onNavigateToFiles} assignmentLookup={assignmentLookup} />)}
                 </div>
               </Section>
             )}

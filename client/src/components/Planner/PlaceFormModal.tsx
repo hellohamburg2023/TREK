@@ -19,9 +19,13 @@ interface PlaceFormData {
   place_time: string
   end_time: string
   day_id: string
+  add_to_all_days: boolean
   notes: string
   transport_mode: string
   website: string
+  google_place_id?: string
+  osm_id?: string
+  phone?: string
 }
 
 const DEFAULT_FORM: PlaceFormData = {
@@ -34,6 +38,7 @@ const DEFAULT_FORM: PlaceFormData = {
   place_time: '',
   end_time: '',
   day_id: '',
+  add_to_all_days: false,
   notes: '',
   transport_mode: 'walking',
   website: '',
@@ -47,7 +52,7 @@ interface PlaceFormModalProps {
   prefillCoords?: { lat: number; lng: number; name?: string; address?: string } | null
   tripId: number
   categories: Category[]
-  onCategoryCreated: (category: Category) => void
+  onCategoryCreated: (category: Partial<Category>) => Promise<Category> | Category | void
   assignmentId: number | null
   dayAssignments?: Assignment[]
   days?: { id: number; title?: string | null; day_number?: number }[]
@@ -73,20 +78,27 @@ export default function PlaceFormModal({
 
   useEffect(() => {
     if (place) {
-      // Use assignment-specific times (COALESCED from assignment_time) if editing within an assignment context
-      const currentAssignment = assignmentId ? dayAssignments.find(a => a.id === assignmentId) : null
+      // Priority: specific assignment context > day-based lookup > global place fields
+      const currentAssignment = assignmentId
+        ? dayAssignments.find(a => a.id === assignmentId)
+        : selectedDayId
+          ? dayAssignments.find(a => a.place?.id === place.id && a.day_id === selectedDayId)
+          : dayAssignments.find(a => a.place?.id === place.id)
       const assignmentPlaceTime = currentAssignment?.place?.place_time ?? place.place_time ?? ''
       const assignmentEndTime = currentAssignment?.place?.end_time ?? place.end_time ?? ''
+      const placeAssignmentCount = dayAssignments.filter(a => a.place?.id === place.id).length
+      const isOnAllDays = days.length > 0 && placeAssignmentCount >= days.length
       setForm({
         name: place.name || '',
         description: place.description || '',
         address: place.address || '',
-        lat: place.lat || '',
-        lng: place.lng || '',
-        category_id: place.category_id || '',
+        lat: String(place.lat ?? ''),
+        lng: String(place.lng ?? ''),
+        category_id: String(place.category_id ?? ''),
         place_time: assignmentPlaceTime,
         end_time: assignmentEndTime,
-        day_id: currentAssignment?.day_id ? String(currentAssignment.day_id) : '',
+        day_id: isOnAllDays ? '' : (currentAssignment?.day_id ? String(currentAssignment.day_id) : selectedDayId ? String(selectedDayId) : ''),
+        add_to_all_days: isOnAllDays,
         notes: place.notes || '',
         transport_mode: place.transport_mode || 'walking',
         website: place.website || '',
@@ -94,7 +106,6 @@ export default function PlaceFormModal({
     } else if (prefillCoords) {
       setForm({
         ...DEFAULT_FORM,
-        day_id: selectedDayId ? String(selectedDayId) : '',
         lat: String(prefillCoords.lat),
         lng: String(prefillCoords.lng),
         name: prefillCoords.name || '',
@@ -144,7 +155,7 @@ export default function PlaceFormModal({
     if (!newCategoryName.trim()) return
     try {
       const cat = await onCategoryCreated?.({ name: newCategoryName, color: '#6366f1', icon: 'MapPin' })
-      if (cat) setForm(prev => ({ ...prev, category_id: cat.id }))
+      if (cat && 'id' in cat) setForm(prev => ({ ...prev, category_id: String(cat.id) }))
       setNewCategoryName('')
       setShowNewCategory(false)
     } catch (err: unknown) {
@@ -166,7 +177,7 @@ export default function PlaceFormModal({
   const handlePaste = (e) => {
     const items = e.clipboardData?.items
     if (!items) return
-    for (const item of Array.from(items)) {
+    for (const item of Array.from(items) as DataTransferItem[]) {
       if (item.type.startsWith('image/') || item.type === 'application/pdf') {
         e.preventDefault()
         const file = item.getAsFile()
@@ -186,10 +197,10 @@ export default function PlaceFormModal({
     }
     setIsSaving(true)
     try {
-      await onSave({
+      await (onSave as unknown as (data: Record<string, unknown>) => Promise<void> | void)({
         ...form,
-        lat: form.lat ? parseFloat(form.lat) : null,
-        lng: form.lng ? parseFloat(form.lng) : null,
+        lat: form.lat || null,
+        lng: form.lng || null,
         category_id: form.category_id || null,
         _pendingFiles: pendingFiles.length > 0 ? pendingFiles : undefined,
       })
@@ -211,7 +222,11 @@ export default function PlaceFormModal({
       <form onSubmit={handleSubmit} className="space-y-4" onPaste={handlePaste}>
         {/* Place Search */}
         <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
-          {!hasMapsKey && (
+          {hasMapsKey ? (
+            <p className="mb-2 text-xs" style={{ color: 'var(--text-faint)' }}>
+              {t('places.googleActive')}
+            </p>
+          ) : (
             <p className="mb-2 text-xs" style={{ color: 'var(--text-faint)' }}>
               {t('places.osmActive')}
             </p>
@@ -327,7 +342,7 @@ export default function PlaceFormModal({
                 options={[
                   { value: '', label: t('places.noCategory') },
                   ...(categories || []).map(c => ({
-                    value: c.id,
+                    value: String(c.id),
                     label: c.name,
                   })),
                 ]}
@@ -355,15 +370,32 @@ export default function PlaceFormModal({
         </div>
 
         {/* Optional day + time */}
+        {days.length > 0 && (
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="add_to_all_days"
+              checked={form.add_to_all_days}
+              onChange={e => {
+                handleChange('add_to_all_days', e.target.checked)
+                if (e.target.checked) handleChange('day_id', '')
+              }}
+              className="w-4 h-4 rounded border-gray-300 text-slate-900 cursor-pointer"
+            />
+            <label htmlFor="add_to_all_days" className="text-sm text-gray-700 cursor-pointer select-none">
+              {t('places.addToAllDays')}
+            </label>
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div>
+          <div className={form.add_to_all_days ? 'opacity-40 pointer-events-none' : ''}>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('reservations.day')}</label>
             <CustomSelect
-              value={form.day_id}
+              value={form.add_to_all_days ? '' : form.day_id}
               onChange={value => handleChange('day_id', value)}
-              placeholder={t('day.allDays')}
+              placeholder="-"
               options={[
-                { value: '', label: t('day.allDays') },
+                { value: '', label: '-' },
                 ...days.map((day, i) => ({
                   value: String(day.id),
                   label: day.title || t('dayplan.dayN', { n: day.day_number || i + 1 }),
@@ -380,6 +412,7 @@ export default function PlaceFormModal({
               dayId={form.day_id ? Number(form.day_id) : null}
               dayAssignments={dayAssignments}
               hasTimeError={hasTimeError}
+              placeId={place?.id ?? null}
               t={t}
             />
           </div>
@@ -451,15 +484,16 @@ export default function PlaceFormModal({
 
 interface TimeSectionProps {
   form: PlaceFormData
-  handleChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => void
+  handleChange: (field: string, value: string) => void
   assignmentId: number | null
   dayId: number | null
   dayAssignments: Assignment[]
   hasTimeError: boolean
+  placeId?: number | null
   t: (key: string, params?: Record<string, string | number>) => string
 }
 
-function TimeSection({ form, handleChange, assignmentId, dayId, dayAssignments, hasTimeError, t }: TimeSectionProps) {
+function TimeSection({ form, handleChange, assignmentId, dayId, dayAssignments, hasTimeError, placeId, t }: TimeSectionProps) {
 
   const collisions = useMemo(() => {
     if (!form.place_time || form.place_time.length < 5) return []
@@ -470,7 +504,7 @@ function TimeSection({ form, handleChange, assignmentId, dayId, dayAssignments, 
     const myStart = form.place_time
     const myEnd = form.end_time && form.end_time.length >= 5 ? form.end_time : null
     return dayAssignments.filter(a => {
-      if (assignmentId && a.id === assignmentId) return false
+      if (assignmentId ? a.id === assignmentId : (placeId && a.place?.id === placeId && a.day_id === currentDayId)) return false
       if (a.day_id !== currentDayId) return false
       const aStart = a.place?.place_time
       const aEnd = a.place?.end_time

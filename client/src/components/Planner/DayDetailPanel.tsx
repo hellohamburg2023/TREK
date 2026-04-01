@@ -28,6 +28,14 @@ function WIcon({ main, size = 14 }: WIconProps) {
 
 function cTemp(c, f) { return Math.round(f ? c * 9 / 5 + 32 : c) }
 
+function parseMinutes(time?: string | null): number | null {
+  if (!time) return null
+  if (time.includes('T')) { const [h, m] = time.split('T')[1].split(':').map(Number); return h * 60 + m }
+  const parts = time.split(':').map(Number)
+  if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) return parts[0] * 60 + parts[1]
+  return null
+}
+
 function formatTime12(val, is12h) {
   if (!val) return val
   const [h, m] = val.split(':').map(Number)
@@ -397,7 +405,15 @@ export default function DayDetailPanel({ day, days, places, categories = [], tri
 
             {/* Activities/Places */}
             {(() => {
-              const dayAssignments = Array.isArray(assignments) ? assignments.filter(a => a.day_id === day.id) : (assignments[String(day.id)] || [])
+              const dayAssignments = (Array.isArray(assignments) ? assignments.filter(a => a.day_id === day.id) : (assignments[String(day.id)] || []))
+                .slice().sort((a, b) => {
+                  const aMin = parseMinutes(a.place?.place_time)
+                  const bMin = parseMinutes(b.place?.place_time)
+                  if (aMin !== null && bMin !== null) return aMin - bMin
+                  if (aMin !== null) return -1
+                  if (bMin !== null) return 1
+                  return (a.order_index ?? 0) - (b.order_index ?? 0)
+                })
               if (!dayAssignments.length) return null
               return (
                 <div style={{ marginTop: 24 }}>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { X, Clock, MapPin, ExternalLink, Phone, Euro, Edit2, Trash2, Plus, Minus, ChevronDown, ChevronUp, FileText, Upload, File, FileImage, Star, Navigation, Users } from 'lucide-react'
+import ReactDOM from 'react-dom'
+import { X, Clock, MapPin, ExternalLink, Phone, Euro, Edit2, Trash2, Plus, Minus, ChevronDown, ChevronUp, FileText, Upload, File, FileImage, Star, Navigation, Users, CalendarDays, Check } from 'lucide-react'
 import PlaceAvatar from '../shared/PlaceAvatar'
 import { mapsApi } from '../../api/client'
 import { useSettingsStore } from '../../store/settingsStore'
@@ -113,7 +114,7 @@ interface PlaceInspectorProps {
   onClose: () => void
   onEdit: () => void
   onDelete: () => void
-  onAssignToDay: (placeId: number, dayId: number) => void
+  onAssignToDay: (placeId: number, dayId: number, position?: number, placeTime?: string | null, endTime?: string | null) => void
   onRemoveAssignment: (assignmentId: number, dayId: number) => void
   files: TripFile[]
   onFileUpload: (fd: FormData) => Promise<void>
@@ -132,6 +133,7 @@ export default function PlaceInspector({
   const [hoursExpanded, setHoursExpanded] = useState(false)
   const [filesExpanded, setFilesExpanded] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [showDayPicker, setShowDayPicker] = useState(false)
   const [editingName, setEditingName] = useState(false)
   const [nameValue, setNameValue] = useState('')
   const nameInputRef = useRef(null)
@@ -192,6 +194,7 @@ export default function PlaceInspector({
   }, [onFileUpload, place.id])
 
   return (
+    <>
     <div
       style={{
         position: 'absolute',
@@ -502,13 +505,12 @@ export default function PlaceInspector({
 
         {/* Footer actions */}
         <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border-faint)', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-          {selectedDayId && (
-            assignmentInDay ? (
-              <ActionButton onClick={() => onRemoveAssignment(selectedDayId, assignmentInDay.id)} variant="ghost" icon={<Minus size={13} />}
-                label={<><span className="hidden sm:inline">{t('inspector.removeFromDay')}</span><span className="sm:hidden">Remove</span></>} />
-            ) : (
-              <ActionButton onClick={() => onAssignToDay(place.id)} variant="primary" icon={<Plus size={13} />} label={t('inspector.addToDay')} />
-            )
+          {days && days.length > 0 && (
+            <ActionButton onClick={() => setShowDayPicker(true)} variant="ghost" icon={<CalendarDays size={13} />} label={<span className="hidden sm:inline">{t('places.assignToDay')}</span>} />
+          )}
+          {selectedDayId && assignmentInDay && (
+            <ActionButton onClick={() => onRemoveAssignment(selectedDayId, assignmentInDay.id)} variant="ghost" icon={<Minus size={13} />}
+              label={<><span className="hidden sm:inline">{t('inspector.removeFromDay')}</span><span className="sm:hidden">Remove</span></>} />
           )}
           {googleDetails?.google_maps_url && (
             <ActionButton onClick={() => window.open(googleDetails.google_maps_url, '_blank')} variant="ghost" icon={<Navigation size={13} />}
@@ -528,6 +530,86 @@ export default function PlaceInspector({
         </div>
       </div>
     </div>
+
+    {showDayPicker && days && days.length > 0 && ReactDOM.createPortal(
+      <div
+        onClick={() => setShowDayPicker(false)}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 99999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+      >
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 500, maxHeight: '70vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid var(--border-secondary)', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{place.name}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 2 }}>{t('places.assignToDay')}</div>
+            </div>
+            <button
+              onClick={() => setShowDayPicker(false)}
+              style={{ width: 32, height: 32, borderRadius: 10, background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'var(--text-muted)' }}
+            ><X size={15} /></button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px' }}>
+            {days.map((day, i) => {
+              const assigned = (assignments[String(day.id)] || []).find(a => a.place?.id === place.id)
+              return (
+                <label
+                  key={day.id}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                    padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
+                    background: 'transparent', fontFamily: 'inherit', textAlign: 'left',
+                    transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                >
+                  <input
+                    type="checkbox"
+                    checked={Boolean(assigned)}
+                    onChange={() => {
+                      if (assigned) {
+                        onRemoveAssignment(day.id, assigned.id)
+                      } else {
+                        onAssignToDay(place.id, day.id, undefined, place.place_time || null, place.end_time || null)
+                      }
+                    }}
+                    style={{ width: 18, height: 18, margin: 0, accentColor: 'var(--accent)', cursor: 'pointer', flexShrink: 0 }}
+                  />
+                  <div style={{
+                    width: 32, height: 32, borderRadius: '50%', background: 'var(--bg-tertiary)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', flexShrink: 0,
+                  }}>{i + 1}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {day.title || t('dayplan.dayN', { n: i + 1 })}
+                    </div>
+                    {day.date && <div style={{ fontSize: 11, color: 'var(--text-faint)' }}>{new Date(day.date + 'T00:00:00').toLocaleDateString()}</div>}
+                  </div>
+                  {assigned && <Check size={15} color="#16a34a" strokeWidth={2.5} />}
+                </label>
+              )
+            })}
+          </div>
+          <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-secondary)' }}>
+            <button
+              onClick={() => setShowDayPicker(false)}
+              style={{
+                width: '100%', padding: '10px 16px', borderRadius: 12, border: 'none', cursor: 'pointer',
+                background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 14, fontWeight: 600,
+                fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}
+            >
+              <Check size={15} strokeWidth={2.5} /> {t('common.confirm')}
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
+    </>
   )
 }
 

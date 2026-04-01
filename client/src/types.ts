@@ -52,6 +52,11 @@ export interface Place {
   osm_id: string | null
   place_time: string | null
   end_time: string | null
+  notes: string | null
+  transport_mode: string | null
+  website: string | null
+  phone: string | null
+  duration_minutes: number | null
   created_at: string
 }
 
@@ -93,6 +98,7 @@ export interface Tag {
 export interface Category {
   id: number
   name: string
+  color: string | null
   icon: string | null
   user_id: number
 }
@@ -187,15 +193,20 @@ export interface Reservation {
   trip_id: number
   name: string
   title?: string
-  type: string | null
+  type: string
   status: 'pending' | 'confirmed'
   date: string | null
   time: string | null
+  reservation_time?: string | null
+  reservation_end_time?: string | null
+  location?: string | null
+  assignment_id?: number | null
   confirmation_number: string | null
   notes: string | null
   url: string | null
   accommodation_id?: number | null
   metadata?: Record<string, string> | null
+  day_plan_position?: number | null
   created_at: string
 }
 
@@ -430,7 +441,7 @@ export function getApiErrorMessage(err: unknown, fallback: string): string {
 
 // MergedItem used in day notes hook
 export interface MergedItem {
-  type: 'assignment' | 'note'
+  type: 'assignment' | 'note' | 'place' | 'transport'
   sortKey: number
-  data: Assignment | DayNote
+  data: Assignment | DayNote | Reservation
 }

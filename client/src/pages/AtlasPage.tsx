@@ -139,7 +139,7 @@ export default function AtlasPage(): React.ReactElement {
     // Border glow that follows cursor
     borderGlareRef.current.style.opacity = '1'
     borderGlareRef.current.style.maskImage = `radial-gradient(circle 150px at ${x}px ${y}px, black 0%, transparent 100%)`
-    borderGlareRef.current.style.WebkitMaskImage = `radial-gradient(circle 150px at ${x}px ${y}px, black 0%, transparent 100%)`
+    borderGlareRef.current.style.webkitMaskImage = `radial-gradient(circle 150px at ${x}px ${y}px, black 0%, transparent 100%)`
   }
   const handlePanelMouseLeave = () => {
     if (glareRef.current) glareRef.current.style.opacity = '0'
@@ -179,7 +179,7 @@ export default function AtlasPage(): React.ReactElement {
 
   // Load GeoJSON world data (direct GeoJSON, no conversion needed)
   useEffect(() => {
-    fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson')
+    fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson')
       .then(r => r.json())
       .then(geo => {
         // Dynamically build A2→A3 mapping from GeoJSON
@@ -227,7 +227,6 @@ export default function AtlasPage(): React.ReactElement {
       tileSize: 256,
       zoomOffset: 0,
       crossOrigin: true,
-      loading: true,
     }).addTo(map)
 
     // Preload adjacent zoom level tiles
@@ -270,7 +269,6 @@ export default function AtlasPage(): React.ReactElement {
     const canvasRenderer = L.canvas({ padding: 0.5, tolerance: 5 })
 
     geoLayerRef.current = L.geoJSON(geoData, {
-      renderer: canvasRenderer,
       interactive: true,
       bubblingMouseEvents: false,
       style: (feature) => {
@@ -592,17 +590,17 @@ export default function AtlasPage(): React.ReactElement {
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 16 }}>
                   <div style={{ flex: 1 }}>
                     <CustomSelect
-                      value={bucketMonth}
+                      value={String(bucketMonth)}
                       onChange={v => setBucketMonth(Number(v))}
-                      options={Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: new Date(2000, i).toLocaleString(language, { month: 'long' }) }))}
+                      options={Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: new Date(2000, i).toLocaleString(language, { month: 'long' }) }))}
                       size="sm"
                     />
                   </div>
                   <div style={{ flex: 1 }}>
                     <CustomSelect
-                      value={bucketYear}
+                      value={String(bucketYear)}
                       onChange={v => setBucketYear(Number(v))}
-                      options={Array.from({ length: 20 }, (_, i) => ({ value: new Date().getFullYear() + i, label: String(new Date().getFullYear() + i) }))}
+                      options={Array.from({ length: 20 }, (_, i) => ({ value: String(new Date().getFullYear() + i), label: String(new Date().getFullYear() + i) }))}
                       size="sm"
                     />
                   </div>

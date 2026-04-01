@@ -322,6 +322,10 @@ function runMigrations(db: Database.Database): void {
       )`);
     },
     () => {
+      // Add day_plan_position to reservations for persistent transport ordering in day timeline
+      try { db.exec('ALTER TABLE reservations ADD COLUMN day_plan_position REAL DEFAULT NULL'); } catch {}
+    },
+    () => {
       // Kosten: expense splitting addon
       db.exec(`
         CREATE TABLE IF NOT EXISTS kosten_expenses (
@@ -438,6 +442,36 @@ function runMigrations(db: Database.Database): void {
         CREATE INDEX IF NOT EXISTS idx_kosten_shares_expense ON kosten_shares(expense_id);
       `);
       db.exec('PRAGMA foreign_keys = ON');
+    },
+    () => {
+      // Public share links for read-only trip access
+      db.exec(`CREATE TABLE IF NOT EXISTS share_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+        token TEXT NOT NULL UNIQUE,
+        created_by INTEGER NOT NULL REFERENCES users(id),
+        share_map INTEGER DEFAULT 1,
+        share_bookings INTEGER DEFAULT 1,
+        share_packing INTEGER DEFAULT 0,
+        share_budget INTEGER DEFAULT 0,
+        share_collab INTEGER DEFAULT 0,
+        share_kosten INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`);
+      try { db.exec('ALTER TABLE share_tokens ADD COLUMN share_map INTEGER DEFAULT 1'); } catch {}
+      try { db.exec('ALTER TABLE share_tokens ADD COLUMN share_bookings INTEGER DEFAULT 1'); } catch {}
+      try { db.exec('ALTER TABLE share_tokens ADD COLUMN share_packing INTEGER DEFAULT 0'); } catch {}
+      try { db.exec('ALTER TABLE share_tokens ADD COLUMN share_budget INTEGER DEFAULT 0'); } catch {}
+      try { db.exec('ALTER TABLE share_tokens ADD COLUMN share_collab INTEGER DEFAULT 0'); } catch {}
+      try { db.exec('ALTER TABLE share_tokens ADD COLUMN share_kosten INTEGER DEFAULT 0'); } catch {}
+    },
+    () => {
+      // Add label column to share_tokens for named/multiple links per trip
+      try { db.exec("ALTER TABLE share_tokens ADD COLUMN label TEXT DEFAULT NULL"); } catch {}
+    },
+    () => {
+      // Add share_kosten column to share_tokens (backfill missing column)
+      try { db.exec('ALTER TABLE share_tokens ADD COLUMN share_kosten INTEGER DEFAULT 0'); } catch {}
     },
   ];
 

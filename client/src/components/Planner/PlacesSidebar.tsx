@@ -1,6 +1,5 @@
-import ReactDOM from 'react-dom'
 import { useState } from 'react'
-import { Search, Plus, Minus, X, CalendarDays, Pencil, Trash2, ExternalLink, Navigation, Check } from 'lucide-react'
+import { Search, Plus, Minus, X, CalendarDays, Pencil, Trash2, ExternalLink, Navigation } from 'lucide-react'
 import PlaceAvatar from '../shared/PlaceAvatar'
 import { getCategoryIcon } from '../shared/categoryIcons'
 import { useTranslation } from '../../i18n'
@@ -49,7 +48,6 @@ export default function PlacesSidebar({
   const [categoryFilter, setCategoryFilterLocal] = useState('')
   // Local day filter state — independent of the global selectedDayId
   const [localDayId, setLocalDayId] = useState<number | null>(null)
-  const [dayPickerPlace, setDayPickerPlace] = useState<Place | null>(null)
 
   const setCategoryFilter = (val: string) => {
     setCategoryFilterLocal(val)
@@ -62,7 +60,7 @@ export default function PlacesSidebar({
   const handleDayChange = (val: string) => {
     const id = val ? Number(val) : null
     setLocalDayId(id)
-    if (id) onSelectDay?.(id)
+    onSelectDay?.(id)
   }
 
   const handleClearDay = () => {
@@ -116,7 +114,40 @@ export default function PlacesSidebar({
       { label: t('places.unplanned'), places: notInDay.map(p => ({ place: p, assignment: null })) },
     ].filter(g => g.places.length > 0)
   } else {
-    renderedGroups = [{ label: null, places: baseFiltered.map(p => ({ place: p, assignment: null })) }]
+    // Build map: place_id → first assignment found across all days
+    const allAssignmentsByPlaceId = new Map<number, any>()
+    Object.values(assignments).forEach(dayAssignments => {
+      dayAssignments.forEach(a => {
+        if (a.place?.id != null && !allAssignmentsByPlaceId.has(a.place.id)) {
+          allAssignmentsByPlaceId.set(a.place.id, a)
+        }
+      })
+    })
+    // Build map: day_id → day_number for sorting
+    const dayNumberById = new Map<number, number>((days || []).map((d, i) => [d.id, (d as any).day_number ?? i + 1]))
+
+    const planned = baseFiltered.filter(p => plannedIds.has(p.id))
+    const unplanned = baseFiltered.filter(p => !plannedIds.has(p.id))
+
+    // Sort planned by day_number asc, then by time asc (nulls last)
+    const sortedPlanned = [...planned].sort((a, b) => {
+      const aA = allAssignmentsByPlaceId.get(a.id)
+      const bA = allAssignmentsByPlaceId.get(b.id)
+      const aDayNum = aA ? (dayNumberById.get(aA.day_id) ?? 9999) : 9999
+      const bDayNum = bA ? (dayNumberById.get(bA.day_id) ?? 9999) : 9999
+      if (aDayNum !== bDayNum) return aDayNum - bDayNum
+      const aTime = aA?.place?.place_time || ''
+      const bTime = bA?.place?.place_time || ''
+      if (!aTime && !bTime) return 0
+      if (!aTime) return 1
+      if (!bTime) return -1
+      return aTime < bTime ? -1 : aTime > bTime ? 1 : 0
+    })
+
+    renderedGroups = [
+      { label: t('places.planned'), places: sortedPlanned.map(p => ({ place: p, assignment: allAssignmentsByPlaceId.get(p.id) || null })) },
+      { label: t('places.unplanned'), places: unplanned.map(p => ({ place: p, assignment: null })) },
+    ].filter(g => g.places.length > 0)
   }
 
   const totalFiltered = baseFiltered.length
@@ -126,6 +157,18 @@ export default function PlacesSidebar({
 
   const selectedDayIndex = days?.findIndex(d => d.id === activeDayId) ?? -1
 
+  // Build map: place_id → all assigned day_ids across all days (for multi-day display)
+  const allDaysByPlaceId = new Map<number, Set<number>>()
+  Object.values(assignments).forEach(dayAssignments => {
+    dayAssignments.forEach(a => {
+      if (a.place?.id != null && a.day_id != null) {
+        const existing = allDaysByPlaceId.get(a.place.id) || new Set<number>()
+        existing.add(a.day_id)
+        allDaysByPlaceId.set(a.place.id, existing)
+      }
+    })
+  })
+
   const renderPlaceRow = (place: Place, assignment: any | null) => {
     const cat = categories.find(c => c.id === place.category_id)
     const isSelected = place.id === selectedPlaceId
@@ -134,10 +177,32 @@ export default function PlacesSidebar({
       ? (assignment || (assignments[String(activeDayId)] || []).find(a => a.place?.id === place.id))
       : null
 
+    // When no day is active, build a label showing all assigned days
+    let dayLabel: string | null = null
+    if (!activeDayId) {
+      const placeAssignedDayIds = allDaysByPlaceId.get(place.id)
+      if (placeAssignedDayIds && placeAssignedDayIds.size > 0) {
+        const dayNums = Array.from(placeAssignedDayIds)
+          .map(dayId => {
+            const idx = days?.findIndex(d => d.id === dayId) ?? -1
+            return idx >= 0 ? ((days?.[idx] as any)?.day_number ?? idx + 1) : null
+          })
+          .filter((n): n is number => n !== null)
+          .sort((a, b) => a - b)
+        if (dayNums.length === 1) {
+          dayLabel = t('dayplan.dayN', { n: dayNums[0] })
+        } else if (dayNums.length <= 3) {
+          dayLabel = dayNums.map(n => t('dayplan.dayN', { n })).join('/')
+        } else {
+          dayLabel = t('places.multiDay')
+        }
+      }
+    }
+
     // Time string from assignment (per-day time) if available, else from place
     const placeTime = assignment?.place?.place_time || place.place_time
     const endTime = assignment?.place?.end_time || place.end_time
-    const timeStr = activeDayId && placeTime
+    const timeStr = placeTime && (activeDayId || dayLabel != null)
       ? `${formatTime12(placeTime, is12h)}${endTime ? `–${formatTime12(endTime, is12h)}` : ''}`
       : ''
 
@@ -151,11 +216,7 @@ export default function PlacesSidebar({
           window.__dragData = { placeId: String(place.id) }
         }}
         onClick={() => {
-          if (isMobile && days?.length > 0) {
-            setDayPickerPlace(place)
-          } else {
-            onPlaceClick(isSelected ? null : place.id)
-          }
+          onPlaceClick(isSelected ? null : place.id)
         }}
         onContextMenu={e => ctxMenu.open(e, [
           onEditPlace && { label: t('common.edit'), icon: Pencil, onClick: () => onEditPlace(place) },
@@ -188,9 +249,16 @@ export default function PlacesSidebar({
               {place.name}
             </span>
           </div>
-          {timeStr ? (
-            <div style={{ marginTop: 2 }}>
-              <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, lineHeight: 1.2 }}>{timeStr}</span>
+          {(timeStr || (!activeDayId && dayLabel != null)) ? (
+            <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
+              {!activeDayId && dayLabel != null && (
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500, lineHeight: 1.2 }}>
+                  {dayLabel}{timeStr ? ' ·' : ''}
+                </span>
+              )}
+              {timeStr && (
+                <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, lineHeight: 1.2 }}>{timeStr}</span>
+              )}
             </div>
           ) : (place.description || place.address || cat?.name) ? (
             <div style={{ marginTop: 2 }}>
@@ -403,88 +471,6 @@ export default function PlacesSidebar({
         )}
       </div>
 
-      {dayPickerPlace && days?.length > 0 && ReactDOM.createPortal(
-        <div
-          onClick={() => setDayPickerPlace(null)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 99999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 500, maxHeight: '60vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}
-          >
-            <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid var(--border-secondary)', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{dayPickerPlace.name}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 2 }}>{t('places.assignToDay')}</div>
-              </div>
-              <button
-                onClick={() => setDayPickerPlace(null)}
-                style={{ width: 32, height: 32, borderRadius: 10, background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'var(--text-muted)' }}
-              ><X size={15} /></button>
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px 8px' }}>
-              {days.map((day, i) => {
-                const assigned = (assignments[String(day.id)] || []).find(a => a.place?.id === dayPickerPlace.id)
-                return (
-                  <label
-                    key={day.id}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                      padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
-                      background: 'transparent', fontFamily: 'inherit', textAlign: 'left',
-                      transition: 'background 0.1s',
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={Boolean(assigned)}
-                      onChange={() => {
-                        if (assigned && onRemoveAssignment) {
-                          onRemoveAssignment(day.id, assigned.id)
-                        } else {
-                          onAssignToDay(dayPickerPlace.id, day.id)
-                        }
-                      }}
-                      style={{
-                        width: 18, height: 18, margin: 0,
-                        accentColor: 'var(--accent)', cursor: 'pointer', flexShrink: 0,
-                      }}
-                    />
-                    <div style={{
-                      width: 32, height: 32, borderRadius: '50%', background: 'var(--bg-tertiary)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', flexShrink: 0,
-                    }}>{i + 1}</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {day.title || `${t('dayplan.dayN', { n: i + 1 })}`}
-                      </div>
-                      {day.date && <div style={{ fontSize: 11, color: 'var(--text-faint)' }}>{new Date(day.date + 'T00:00:00').toLocaleDateString()}</div>}
-                    </div>
-                    {assigned && <span style={{ fontSize: 11, color: '#16a34a' }}>✓</span>}
-                  </label>
-                )
-              })}
-            </div>
-            {/* Confirm footer */}
-            <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-secondary)' }}>
-              <button
-                onClick={() => setDayPickerPlace(null)}
-                style={{
-                  width: '100%', padding: '10px 16px', borderRadius: 12, border: 'none', cursor: 'pointer',
-                  background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 14, fontWeight: 600,
-                  fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                }}
-              >
-                <Check size={15} strokeWidth={2.5} /> {t('common.confirm')}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
       <ContextMenu menu={ctxMenu.menu} onClose={ctxMenu.close} />
     </div>
   )

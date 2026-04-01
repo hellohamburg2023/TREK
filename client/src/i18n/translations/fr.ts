@@ -629,7 +629,9 @@ const fr: Record<string, string> = {
 
   // Places Sidebar
   'places.addPlace': 'Ajouter un lieu ou une activité',
-  'places.assignToDay': 'Ajouter à quel jour ?',
+  'places.addToAllDays': 'Ajouter à tous les jours',
+  'places.multiDay': 'Plusieurs jours',
+  'places.assignToDay': 'Ajouter / retirer du jour',
   'places.all': 'Tous',
   'places.planned': 'Planifiés',
   'places.unplanned': 'Non planifiés',
@@ -664,6 +666,7 @@ const fr: Record<string, string> = {
   'places.mapsSearchError': 'La recherche de lieu a échoué.',
   'places.osmHint': 'Recherche via OpenStreetMap (pas de photos, horaires ni notes). Ajoutez une clé API Google dans les paramètres pour plus de détails.',
   'places.osmActive': 'Recherche via OpenStreetMap (pas de photos, notes ni horaires). Ajoutez une clé API Google dans les paramètres pour des données enrichies.',
+  'places.googleActive': 'Recherche via Google Maps (avec photos, notes & horaires).',
   'places.categoryCreateError': 'Impossible de créer la catégorie',
   'places.nameRequired': 'Veuillez saisir un nom',
   'places.saveError': 'Échec de l\'enregistrement',

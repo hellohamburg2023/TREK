@@ -627,7 +627,9 @@ const ar: Record<string, string | { name: string; category: string }[]> = {
 
   // Places Sidebar
   'places.addPlace': 'إضافة مكان/نشاط',
-  'places.assignToDay': 'إلى أي يوم تريد الإضافة؟',
+  'places.addToAllDays': 'إضافة إلى جميع الأيام',
+  'places.multiDay': 'متعدد الأيام',
+  'places.assignToDay': 'إضافة/إزالة من اليوم',
   'places.all': 'الكل',
   'places.planned': 'مخطط',
   'places.unplanned': 'غير مخطط',
@@ -662,6 +664,7 @@ const ar: Record<string, string | { name: string; category: string }[]> = {
   'places.mapsSearchError': 'فشل البحث عن المكان.',
   'places.osmHint': 'يتم البحث عبر OpenStreetMap (بدون صور أو ساعات عمل أو تقييمات). أضف مفتاح Google API في الإعدادات للحصول على جميع التفاصيل.',
   'places.osmActive': 'البحث عبر OpenStreetMap (بدون صور أو تقييمات أو ساعات عمل). أضف مفتاح Google API في الإعدادات لبيانات موسعة.',
+  'places.googleActive': 'البحث عبر Google Maps (مع الصور والتقييمات وساعات العمل نشطة).',
   'places.categoryCreateError': 'فشل إنشاء الفئة',
   'places.nameRequired': 'يرجى إدخال اسم',
   'places.saveError': 'فشل الحفظ',

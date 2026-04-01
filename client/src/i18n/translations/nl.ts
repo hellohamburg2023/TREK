@@ -621,7 +621,9 @@ const nl: Record<string, string> = {
 
   // Places Sidebar
   'places.addPlace': 'Plaats/activiteit toevoegen',
-  'places.assignToDay': 'Aan welke dag toevoegen?',
+  'places.addToAllDays': 'Toevoegen aan alle dagen',
+  'places.multiDay': 'Meerdere dagen',
+  'places.assignToDay': 'Dag toevoegen/verwijderen',
   'places.all': 'Alle',
   'places.planned': 'Gepland',
   'places.unplanned': 'Ongepland',
@@ -656,6 +658,7 @@ const nl: Record<string, string> = {
   'places.mapsSearchError': 'Zoeken naar plaatsen mislukt.',
   'places.osmHint': 'Zoeken via OpenStreetMap (geen foto\'s, openingstijden of beoordelingen). Voeg een Google API-sleutel toe in instellingen voor volledige details.',
   'places.osmActive': 'Zoeken via OpenStreetMap (geen foto\'s, beoordelingen of openingstijden). Voeg een Google API-sleutel toe in Instellingen voor uitgebreide gegevens.',
+  'places.googleActive': 'Zoeken via Google Maps (incl. foto\'s, beoordelingen & openingstijden actief).',
   'places.categoryCreateError': 'Categorie aanmaken mislukt',
   'places.nameRequired': 'Voer een naam in',
   'places.saveError': 'Opslaan mislukt',
