@@ -18,6 +18,7 @@ interface PlaceFormData {
   category_id: string
   place_time: string
   end_time: string
+  day_id: string
   notes: string
   transport_mode: string
   website: string
@@ -32,6 +33,7 @@ const DEFAULT_FORM: PlaceFormData = {
   category_id: '',
   place_time: '',
   end_time: '',
+  day_id: '',
   notes: '',
   transport_mode: 'walking',
   website: '',
@@ -48,11 +50,13 @@ interface PlaceFormModalProps {
   onCategoryCreated: (category: Category) => void
   assignmentId: number | null
   dayAssignments?: Assignment[]
+  days?: { id: number; title?: string | null; day_number?: number }[]
+  selectedDayId?: number | null
 }
 
 export default function PlaceFormModal({
   isOpen, onClose, onSave, place, prefillCoords, tripId, categories,
-  onCategoryCreated, assignmentId, dayAssignments = [],
+  onCategoryCreated, assignmentId, dayAssignments = [], days = [], selectedDayId = null,
 }: PlaceFormModalProps) {
   const [form, setForm] = useState(DEFAULT_FORM)
   const [mapsSearch, setMapsSearch] = useState('')
@@ -69,6 +73,7 @@ export default function PlaceFormModal({
 
   useEffect(() => {
     if (place) {
+      const currentAssignment = assignmentId ? dayAssignments.find(a => a.id === assignmentId) : null
       setForm({
         name: place.name || '',
         description: place.description || '',
@@ -78,6 +83,7 @@ export default function PlaceFormModal({
         category_id: place.category_id || '',
         place_time: place.place_time || '',
         end_time: place.end_time || '',
+        day_id: currentAssignment?.day_id ? String(currentAssignment.day_id) : '',
         notes: place.notes || '',
         transport_mode: place.transport_mode || 'walking',
         website: place.website || '',
@@ -85,16 +91,20 @@ export default function PlaceFormModal({
     } else if (prefillCoords) {
       setForm({
         ...DEFAULT_FORM,
+        day_id: selectedDayId ? String(selectedDayId) : '',
         lat: String(prefillCoords.lat),
         lng: String(prefillCoords.lng),
         name: prefillCoords.name || '',
         address: prefillCoords.address || '',
       })
     } else {
-      setForm(DEFAULT_FORM)
+      setForm({
+        ...DEFAULT_FORM,
+        day_id: selectedDayId ? String(selectedDayId) : '',
+      })
     }
     setPendingFiles([])
-  }, [place, prefillCoords, isOpen])
+  }, [place, prefillCoords, isOpen, selectedDayId, assignmentId, dayAssignments])
 
   const handleChange = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -343,17 +353,36 @@ export default function PlaceFormModal({
           )}
         </div>
 
-        {/* Time — only shown when editing, not when creating */}
-        {place && (
-          <TimeSection
-            form={form}
-            handleChange={handleChange}
-            assignmentId={assignmentId}
-            dayAssignments={dayAssignments}
-            hasTimeError={hasTimeError}
-            t={t}
-          />
-        )}
+        {/* Optional day + time */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('reservations.day')}</label>
+            <CustomSelect
+              value={form.day_id}
+              onChange={value => handleChange('day_id', value)}
+              placeholder={t('day.allDays')}
+              options={[
+                { value: '', label: t('day.allDays') },
+                ...days.map((day, i) => ({
+                  value: String(day.id),
+                  label: day.title || t('dayplan.dayN', { n: day.day_number || i + 1 }),
+                })),
+              ]}
+              size="sm"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <TimeSection
+              form={form}
+              handleChange={handleChange}
+              assignmentId={assignmentId}
+              dayId={form.day_id ? Number(form.day_id) : null}
+              dayAssignments={dayAssignments}
+              hasTimeError={hasTimeError}
+              t={t}
+            />
+          </div>
+        </div>
 
         {/* Website */}
         <div>
@@ -423,23 +452,25 @@ interface TimeSectionProps {
   form: PlaceFormData
   handleChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => void
   assignmentId: number | null
+  dayId: number | null
   dayAssignments: Assignment[]
   hasTimeError: boolean
   t: (key: string, params?: Record<string, string | number>) => string
 }
 
-function TimeSection({ form, handleChange, assignmentId, dayAssignments, hasTimeError, t }: TimeSectionProps) {
+function TimeSection({ form, handleChange, assignmentId, dayId, dayAssignments, hasTimeError, t }: TimeSectionProps) {
 
   const collisions = useMemo(() => {
-    if (!assignmentId || !form.place_time || form.place_time.length < 5) return []
-    // Find the day_id for the current assignment
-    const current = dayAssignments.find(a => a.id === assignmentId)
-    if (!current) return []
+    if (!form.place_time || form.place_time.length < 5) return []
+    const currentDayId = assignmentId
+      ? dayAssignments.find(a => a.id === assignmentId)?.day_id
+      : dayId
+    if (!currentDayId) return []
     const myStart = form.place_time
     const myEnd = form.end_time && form.end_time.length >= 5 ? form.end_time : null
     return dayAssignments.filter(a => {
-      if (a.id === assignmentId) return false
-      if (a.day_id !== current.day_id) return false
+      if (assignmentId && a.id === assignmentId) return false
+      if (a.day_id !== currentDayId) return false
       const aStart = a.place?.place_time
       const aEnd = a.place?.end_time
       if (!aStart) return false
@@ -448,7 +479,7 @@ function TimeSection({ form, handleChange, assignmentId, dayAssignments, hasTime
       const s2 = aStart, e2 = aEnd || aStart
       return s1 < (e2 || '23:59') && s2 < (e1 || '23:59') && s1 !== e2 && s2 !== e1
     })
-  }, [assignmentId, dayAssignments, form.place_time, form.end_time])
+  }, [assignmentId, dayAssignments, form.place_time, form.end_time, dayId])
 
   return (
     <div>
