@@ -762,30 +762,6 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
 
       {/* Tagesliste */}
       <div className="scroll-container" style={{ flex: 1, overflowY: 'auto', minHeight: 0, scrollbarWidth: 'thin', scrollbarColor: 'var(--scrollbar-thumb) transparent' }}>
-<<<<<<< HEAD
-        {(() => {
-          const todayMs = new Date().setHours(0,0,0,0)
-          const isDayPast = (d) => d.date && new Date(d.date).setHours(0,0,0,0) < todayMs
-          let hasShownPastDaysHeader = false
-          const pastDaysCount = days.filter(isDayPast).length
-
-          return days.map((day, index) => {
-            const isSelected = selectedDayId === day.id
-            const isExpanded = expandedDays.has(day.id)
-            const da = getDayAssignments(day.id)
-            const cost = dayTotalCost(day.id, assignments, currency)
-            const formattedDate = formatDate(day.date, locale)
-            const loc = da.find(a => a.place?.lat && a.place?.lng)
-            const isDragTarget = dragOverDayId === day.id
-            const merged = getMergedItems(day.id)
-            const dayNoteUi = noteUi[day.id]
-            const placeItems = merged.filter(i => i.type === 'place')
-            const isPast = isDayPast(day)
-            const isToday = day.date && new Date(day.date).setHours(0,0,0,0) === todayMs
-
-            const renderNode = (
-            <div key={day.id} style={{ borderBottom: '1px solid var(--border-faint)' }}>
-=======
         {days.map((day, index) => {
           const isSelected = selectedDayId === day.id
           const isExpanded = expandedDays.has(day.id)
@@ -800,7 +776,6 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
 
           return (
             <div key={day.id} style={{ borderBottom: '1px solid var(--border-faint)', contentVisibility: 'auto', containIntrinsicSize: '0 64px' }}>
->>>>>>> upstream/dev
               {/* Tages-Header — akzeptiert Drops aus der PlacesSidebar */}
               <div
                 onClick={() => { onSelectDay(day.id); if (onDayDetail) onDayDetail(day) }}
@@ -1072,13 +1047,8 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                             onDragEnd={() => { setDraggingId(null); setDragOverDayId(null); setDropTargetKey(null); dragDataRef.current = null }}
                             onClick={() => { onPlaceClick(isPlaceSelected ? null : place.id, isPlaceSelected ? null : assignment.id); if (!isPlaceSelected) onSelectDay(day.id, true) }}
                             onContextMenu={e => ctxMenu.open(e, [
-<<<<<<< HEAD
-                              onEditPlace && { label: t('common.edit'), icon: Pencil, onClick: () => onEditPlace(place, assignment.id) },
-                              onRemoveAssignment && { label: t('planner.removeFromDay'), icon: Minus, danger: true, onClick: () => onRemoveAssignment(day.id, assignment.id) },
-=======
                               canEditDays && onEditPlace && { label: t('common.edit'), icon: Pencil, onClick: () => onEditPlace(place, assignment.id) },
                               canEditDays && onRemoveAssignment && { label: t('planner.removeFromDay'), icon: Trash2, onClick: () => onRemoveAssignment(day.id, assignment.id) },
->>>>>>> upstream/dev
                               place.website && { label: t('inspector.website'), icon: ExternalLink, onClick: () => window.open(place.website, '_blank') },
                               (place.lat && place.lng) && { label: 'Google Maps', icon: Navigation, onClick: () => window.open(`https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}`, '_blank') },
                               { divider: true },
@@ -1450,28 +1420,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
               )}
             </div>
           )
-
-            if (isPast) {
-               if (!hasShownPastDaysHeader) {
-                 hasShownPastDaysHeader = true;
-                 return (
-                   <React.Fragment key={`past-group-${day.id}`}>
-                     <div style={{ borderBottom: '1px solid var(--border-faint)' }}>
-                       <button onClick={() => setShowPastDays(!showPastDays)} style={{ width: '100%', padding: '12px 16px', background: 'var(--bg-secondary)', border: 'none', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary)', borderLeft: '3px solid var(--text-faint)' }}>
-                         {showPastDays ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                         <span style={{ fontSize: 13, fontWeight: 600 }}>{t('planner.pastDays', 'Vergangene Tage')} ({pastDaysCount})</span>
-                       </button>
-                     </div>
-                     {showPastDays ? renderNode : null}
-                   </React.Fragment>
-                 )
-               }
-               return showPastDays ? renderNode : null
-            }
-
-            return renderNode
-          })
-        })()}
+        })}
       </div>
 
       {/* Notiz-Popup-Modal — über Portal gerendert, um den backdropFilter-Stapelkontext zu umgehen */}

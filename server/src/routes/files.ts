@@ -72,14 +72,7 @@ function formatFile(file: TripFile & { trip_id?: number }) {
   const tripId = file.trip_id;
   return {
     ...file,
-<<<<<<< HEAD
-    url: file.filename?.startsWith('files/') ? `/uploads/${file.filename}` : `/uploads/files/${file.filename}`,
-    uploaded_by_avatar: (file as any).uploaded_by_avatar
-      ? `/uploads/avatars/${(file as any).uploaded_by_avatar}`
-      : null,
-=======
     url: `/api/trips/${tripId}/files/${file.id}/download`,
->>>>>>> upstream/dev
   };
 }
 

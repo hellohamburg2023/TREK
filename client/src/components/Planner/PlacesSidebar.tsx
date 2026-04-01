@@ -2,11 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom'
 import { useState, useRef, useMemo, useCallback } from 'react'
 import DOM from 'react-dom'
-<<<<<<< HEAD
-import { Search, Plus, Minus, X, CalendarDays, Pencil, Trash2, ExternalLink, Navigation } from 'lucide-react'
-=======
 import { Search, Plus, X, CalendarDays, Pencil, Trash2, ExternalLink, Navigation, Upload, ChevronDown, Check } from 'lucide-react'
->>>>>>> upstream/dev
 import PlaceAvatar from '../shared/PlaceAvatar'
 import { getCategoryIcon } from '../shared/categoryIcons'
 import { useTranslation } from '../../i18n'
@@ -37,15 +33,9 @@ interface PlacesSidebarProps {
   onCategoryFilterChange?: (categoryId: string) => void
 }
 
-<<<<<<< HEAD
-export default function PlacesSidebar({
-  places, categories, assignments, selectedDayId, selectedPlaceId,
-  onPlaceClick, onAddPlace, onAssignToDay, onRemoveAssignment, onEditPlace, onDeletePlace, onSelectDay, days, isMobile, onCategoryFilterChange,
-=======
 const PlacesSidebar = React.memo(function PlacesSidebar({
   tripId, places, categories, assignments, selectedDayId, selectedPlaceId,
   onPlaceClick, onAddPlace, onAssignToDay, onEditPlace, onDeletePlace, days, isMobile, onCategoryFilterChange,
->>>>>>> upstream/dev
 }: PlacesSidebarProps) {
   const { t } = useTranslation()
   const toast = useToast()
@@ -89,12 +79,7 @@ const PlacesSidebar = React.memo(function PlacesSidebar({
     Object.values(assignments).flatMap(da => da.map(a => a.place?.id).filter(Boolean))
   ), [assignments])
 
-<<<<<<< HEAD
-  const filtered = places.filter(p => {
-    if (filter === 'planned' && !plannedIds.has(p.id)) return false
-=======
   const filtered = useMemo(() => places.filter(p => {
->>>>>>> upstream/dev
     if (filter === 'unplanned' && plannedIds.has(p.id)) return false
     if (categoryFilters.size > 0 && !categoryFilters.has(String(p.category_id))) return false
     if (search && !p.name.toLowerCase().includes(search.toLowerCase()) &&
@@ -113,20 +98,7 @@ const PlacesSidebar = React.memo(function PlacesSidebar({
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif" }}>
       {/* Kopfbereich */}
       <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--border-faint)', flexShrink: 0 }}>
-<<<<<<< HEAD
-        {selectedDayLabel && days && (
-          <div style={{ marginBottom: 12 }}>
-            <CustomSelect
-              value={String(selectedDayId)}
-              onChange={(val) => onSelectDay?.(Number(val))}
-              options={days.map((d, i) => ({ value: String(d.id), label: d.title || t('dayplan.dayN', { n: i + 1 }), icon: <CalendarDays size={14} color="var(--accent)" /> }))}
-            />
-          </div>
-        )}
-        <button
-=======
         {canEditPlaces && <button
->>>>>>> upstream/dev
           onClick={onAddPlace}
           style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -293,14 +265,8 @@ const PlacesSidebar = React.memo(function PlacesSidebar({
                   }
                 }}
                 onContextMenu={e => ctxMenu.open(e, [
-<<<<<<< HEAD
-                  onEditPlace && { label: t('common.edit'), icon: Pencil, onClick: () => onEditPlace(place) },
-                  (!inDay && selectedDayId) && { label: t('planner.addToDay'), icon: CalendarDays, onClick: () => onAssignToDay(place.id, selectedDayId) },
-                  (inDay && selectedDayId && onRemoveAssignment && assignmentInSelectedDay) && { label: t('planner.removeFromDay'), icon: Minus, danger: true, onClick: () => onRemoveAssignment(selectedDayId, assignmentInSelectedDay.id) },
-=======
                   canEditPlaces && { label: t('common.edit'), icon: Pencil, onClick: () => onEditPlace(place) },
                   selectedDayId && { label: t('planner.addToDay'), icon: CalendarDays, onClick: () => onAssignToDay(place.id, selectedDayId) },
->>>>>>> upstream/dev
                   place.website && { label: t('inspector.website'), icon: ExternalLink, onClick: () => window.open(place.website, '_blank') },
                   (place.lat && place.lng) && { label: 'Google Maps', icon: Navigation, onClick: () => window.open(`https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}`, '_blank') },
                   { divider: true },
