@@ -650,6 +650,8 @@ const ru: Record<string, string> = {
   'places.endTime': 'Конец',
   'places.endTimeBeforeStart': 'Время окончания раньше времени начала',
   'places.timeCollision': 'Пересечение по времени с:',
+  'places.addDayEntry': 'Добавить день',
+  'places.copyTimeToAll': 'Копировать время на все дни',
   'places.formWebsite': 'Сайт',
   'places.formNotesPlaceholder': 'Личные заметки...',
   'places.formReservation': 'Бронирование',
@@ -678,6 +680,7 @@ const ru: Record<string, string> = {
   'inspector.addRes': 'Бронирование',
   'inspector.editRes': 'Редактировать бронирование',
   'inspector.participants': 'Участники',
+  'inspector.scheduleOverview': 'Обзор плана',
 
   // Reservations
   'reservations.title': 'Бронирования',

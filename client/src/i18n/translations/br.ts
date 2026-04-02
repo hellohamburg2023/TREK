@@ -659,6 +659,8 @@ const br: Record<string, string | { name: string; category: string }[]> = {
   'places.endTime': 'Fim',
   'places.endTimeBeforeStart': 'O horário de fim é antes do início',
   'places.timeCollision': 'Sobreposição de horário com:',
+  'places.addDayEntry': 'Adicionar dia',
+  'places.copyTimeToAll': 'Copiar horário para todos os dias',
   'places.formWebsite': 'Site',
   'places.formNotesPlaceholder': 'Notas pessoais...',
   'places.formReservation': 'Reserva',
@@ -687,6 +689,7 @@ const br: Record<string, string | { name: string; category: string }[]> = {
   'inspector.addRes': 'Reserva',
   'inspector.editRes': 'Editar reserva',
   'inspector.participants': 'Participantes',
+  'inspector.scheduleOverview': 'Visão geral do planejamento',
 
   // Reservations
   'reservations.title': 'Reservas',

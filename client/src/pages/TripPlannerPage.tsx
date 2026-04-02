@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import ReactDOM from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTripStore } from '../store/tripStore'
@@ -99,6 +99,9 @@ export default function TripPlannerPage(): React.ReactElement | null {
   const [fitKey, setFitKey] = useState<number>(0)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<'left' | 'right' | null>(null)
   const [deletePlaceId, setDeletePlaceId] = useState<number | null>(null)
+  // Track origin context so we can restore it after closing the edit form
+  const editReturnPlaceIdRef = useRef<number | null>(null)
+  const editReturnDayDetailRef = useRef<Day | null>(null)
 
   // Load trip + files (needed for place inspector file section)
   useEffect(() => {
@@ -177,7 +180,11 @@ export default function TripPlannerPage(): React.ReactElement | null {
 
   const handleSavePlace = useCallback(async (data) => {
     const pendingFiles = data._pendingFiles
+    const dayTimeEntries: { assignment_id: number | null; day_id: string; place_time: string; end_time: string }[] | undefined = data._dayTimeEntries
+    const deletedAssignmentIds: number[] | undefined = data._deletedAssignmentIds
     delete data._pendingFiles
+    delete data._dayTimeEntries
+    delete data._deletedAssignmentIds
     const { place_time, end_time, day_id, add_to_all_days, ...placeData } = data
     const selectedModalDayId = day_id ? Number(day_id) : null
     if (editingPlace) {
@@ -189,6 +196,42 @@ export default function TripPlannerPage(): React.ReactElement | null {
           const existing = (assignments[String(day.id)] || []).find(a => a.place?.id === editingPlace.id)
           if (existing?.id) {
             await assignmentsApi.updateTime(tripId, existing.id, { place_time: place_time || null, end_time: end_time || null })
+          }
+        }
+        await tripStore.refreshDays(tripId)
+      } else if (dayTimeEntries) {
+        // Multi-day edit mode: handle deleted, updated and new entries
+        if (deletedAssignmentIds?.length) {
+          for (const aid of deletedAssignmentIds) {
+            const assgn = Object.values(assignments).flat().find(a => a.id === aid)
+            if (assgn) {
+              await tripStore.removeAssignment(tripId, assgn.day_id, aid)
+            }
+          }
+        }
+        for (const entry of dayTimeEntries) {
+          if (!entry.day_id) continue
+          const entryDayId = Number(entry.day_id)
+          if (entry.assignment_id) {
+            // Update existing assignment time
+            await assignmentsApi.updateTime(tripId, entry.assignment_id, {
+              place_time: entry.place_time || null,
+              end_time: entry.end_time || null,
+            })
+          } else {
+            // New assignment for this day
+            const existing = (assignments[String(entryDayId)] || []).find(a => a.place?.id === editingPlace.id)
+            let targetId = existing?.id
+            if (!targetId) {
+              const created = await tripStore.assignPlaceToDay(tripId, entryDayId, editingPlace.id)
+              targetId = created?.id
+            }
+            if (targetId) {
+              await assignmentsApi.updateTime(tripId, targetId, {
+                place_time: entry.place_time || null,
+                end_time: entry.end_time || null,
+              })
+            }
           }
         }
         await tripStore.refreshDays(tripId)
@@ -582,16 +625,18 @@ export default function TripPlannerPage(): React.ReactElement | null {
             </div>
 
             {/* Mobile sidebar buttons — portal to body to escape Leaflet touch handling */}
-            {activeTab === 'plan' && !mobileSidebarOpen && !showPlaceForm && !showMembersModal && !showReservationModal && ReactDOM.createPortal(
-              <div className="flex md:hidden" style={{ position: 'fixed', top: 'calc(var(--nav-h) + 44px + 12px)', left: 12, right: 12, justifyContent: 'space-between', zIndex: 100, pointerEvents: 'none' }}>
-                <button onClick={() => setMobileSidebarOpen('left')}
-                  style={{ pointerEvents: 'auto', background: 'var(--bg-card)', color: 'var(--text-primary)', backdropFilter: 'blur(12px)', border: '1px solid var(--border-primary)', borderRadius: 24, padding: '11px 24px', fontSize: 15, fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 12px rgba(0,0,0,0.15)', minHeight: 44, fontFamily: 'inherit', touchAction: 'manipulation' }}>
-                  {t('trip.mobilePlan')}
-                </button>
-                <button onClick={() => setMobileSidebarOpen('right')}
-                  style={{ pointerEvents: 'auto', background: 'var(--bg-card)', color: 'var(--text-primary)', backdropFilter: 'blur(12px)', border: '1px solid var(--border-primary)', borderRadius: 24, padding: '11px 24px', fontSize: 15, fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 12px rgba(0,0,0,0.15)', minHeight: 44, fontFamily: 'inherit', touchAction: 'manipulation' }}>
-                  {t('trip.mobilePlaces')}
-                </button>
+            {activeTab === 'plan' && !mobileSidebarOpen && !showPlaceForm && !showMembersModal && !showReservationModal && !selectedPlace && !showDayDetail && ReactDOM.createPortal(
+              <div className="flex md:hidden" style={{ position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', zIndex: 100 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', background: 'var(--bg-card)', borderRadius: 28, border: '1px solid var(--border-primary)', boxShadow: '0 4px 20px rgba(0,0,0,0.18)', overflow: 'hidden', backdropFilter: 'blur(16px)' }}>
+                  <button onClick={() => setMobileSidebarOpen('left')}
+                    style={{ padding: '12px 28px', fontSize: 15, fontWeight: 600, cursor: 'pointer', color: 'var(--text-primary)', background: 'transparent', border: 'none', borderRight: '1px solid var(--border-primary)', minHeight: 48, fontFamily: 'inherit', touchAction: 'manipulation', whiteSpace: 'nowrap', textAlign: 'center' }}>
+                    {t('trip.mobilePlan')}
+                  </button>
+                  <button onClick={() => setMobileSidebarOpen('right')}
+                    style={{ padding: '12px 28px', fontSize: 15, fontWeight: 600, cursor: 'pointer', color: 'var(--text-primary)', background: 'transparent', border: 'none', minHeight: 48, fontFamily: 'inherit', touchAction: 'manipulation', whiteSpace: 'nowrap', textAlign: 'center' }}>
+                    {t('trip.mobilePlaces')}
+                  </button>
+                </div>
               </div>,
               document.body
             )}
@@ -628,6 +673,9 @@ export default function TripPlannerPage(): React.ReactElement | null {
                 reservations={reservations}
                 onClose={() => setSelectedPlaceId(null)}
                 onEdit={() => {
+                  // Save context to restore after modal closes
+                  editReturnPlaceIdRef.current = selectedPlaceId
+                  editReturnDayDetailRef.current = showDayDetail
                   // When editing from assignment context, use assignment-level times
                   if (selectedAssignmentId) {
                     const assignmentObj = Object.values(assignments).flat().find(a => a.id === selectedAssignmentId)
@@ -748,7 +796,19 @@ export default function TripPlannerPage(): React.ReactElement | null {
         )}
       </div>
 
-      <PlaceFormModal isOpen={showPlaceForm} onClose={() => { setShowPlaceForm(false); setEditingPlace(null); setEditingAssignmentId(null); setPrefillCoords(null); if (window.innerWidth < 768) setMobileSidebarOpen('right'); }} onSave={handleSavePlace} place={editingPlace} prefillCoords={prefillCoords} assignmentId={editingAssignmentId} dayAssignments={Object.values(assignments).flat()} days={days} selectedDayId={selectedDayId} tripId={tripId} categories={categories} onCategoryCreated={cat => tripStore.addCategory?.(cat)} />
+      <PlaceFormModal isOpen={showPlaceForm} onClose={() => {
+        setShowPlaceForm(false); setEditingPlace(null); setEditingAssignmentId(null); setPrefillCoords(null)
+        // Restore the view context from where the form was opened
+        if (editReturnPlaceIdRef.current !== null) {
+          setSelectedPlaceId(editReturnPlaceIdRef.current)
+          editReturnPlaceIdRef.current = null
+        }
+        if (editReturnDayDetailRef.current !== null) {
+          setShowDayDetail(editReturnDayDetailRef.current)
+          editReturnDayDetailRef.current = null
+        }
+        if (window.innerWidth < 768) setMobileSidebarOpen('right')
+      }} onSave={handleSavePlace} place={editingPlace} prefillCoords={prefillCoords} assignmentId={editingAssignmentId} dayAssignments={Object.values(assignments).flat()} days={days} selectedDayId={selectedDayId} tripId={tripId} categories={categories} onCategoryCreated={cat => tripStore.addCategory?.(cat)} />
       <TripFormModal isOpen={showTripForm} onClose={() => setShowTripForm(false)} onSave={async (data) => { await tripStore.updateTrip(tripId, data); toast.success(t('trip.toast.tripUpdated')) }} trip={trip} />
       <TripMembersModal isOpen={showMembersModal} onClose={() => setShowMembersModal(false)} tripId={tripId} tripTitle={trip?.title} />
       <ReservationModal isOpen={showReservationModal} onClose={() => { setShowReservationModal(false); setEditingReservation(null) }} onSave={handleSaveReservation} reservation={editingReservation} days={days} places={places} assignments={assignments} selectedDayId={selectedDayId} files={files} onFileUpload={(fd) => tripStore.addFile(tripId, fd)} onFileDelete={(id) => tripStore.deleteFile(tripId, id)} accommodations={tripAccommodations} />

@@ -650,6 +650,8 @@ const nl: Record<string, string> = {
   'places.endTime': 'Einde',
   'places.endTimeBeforeStart': 'Eindtijd is vóór de starttijd',
   'places.timeCollision': 'Tijdoverlap met:',
+  'places.addDayEntry': 'Dag toevoegen',
+  'places.copyTimeToAll': 'Tijd naar alle dagen kopiëren',
   'places.formWebsite': 'Website',
   'places.formNotesPlaceholder': 'Persoonlijke notities...',
   'places.formReservation': 'Reservering',
@@ -678,6 +680,7 @@ const nl: Record<string, string> = {
   'inspector.addRes': 'Reservering',
   'inspector.editRes': 'Reservering bewerken',
   'inspector.participants': 'Deelnemers',
+  'inspector.scheduleOverview': 'Planningsoverzicht',
 
   // Reservations
   'reservations.title': 'Boekingen',

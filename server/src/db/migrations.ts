@@ -473,6 +473,68 @@ function runMigrations(db: Database.Database): void {
       // Add share_kosten column to share_tokens (backfill missing column)
       try { db.exec('ALTER TABLE share_tokens ADD COLUMN share_kosten INTEGER DEFAULT 0'); } catch {}
     },
+    () => {
+      // Trip-specific invite links (multi-use, owner-revocable)
+      db.exec(`CREATE TABLE IF NOT EXISTS trip_invite_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+        token TEXT NOT NULL UNIQUE,
+        label TEXT,
+        created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_trip_invite_tokens_trip ON trip_invite_tokens(trip_id)`);
+    },
+    () => {
+      // Remove UNIQUE constraint from username — only email must be unique
+      db.exec('PRAGMA foreign_keys = OFF');
+      db.exec(`
+        CREATE TABLE users_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          username TEXT NOT NULL,
+          email TEXT UNIQUE NOT NULL,
+          password_hash TEXT NOT NULL,
+          role TEXT NOT NULL DEFAULT 'user',
+          maps_api_key TEXT,
+          unsplash_api_key TEXT,
+          openweather_api_key TEXT,
+          avatar TEXT,
+          oidc_sub TEXT,
+          oidc_issuer TEXT,
+          last_login DATETIME,
+          mfa_enabled INTEGER DEFAULT 0,
+          mfa_secret TEXT,
+          immich_url TEXT,
+          immich_api_key TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        INSERT INTO users_new SELECT id, username, email, password_hash, role, maps_api_key, unsplash_api_key, openweather_api_key, avatar, oidc_sub, oidc_issuer, last_login, mfa_enabled, mfa_secret, immich_url, immich_api_key, created_at FROM users;
+        DROP TABLE users;
+        ALTER TABLE users_new RENAME TO users;
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
+      db.exec('PRAGMA foreign_keys = ON');
+    },
+    () => {
+      // Password reset tokens
+      db.exec(`CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token TEXT NOT NULL UNIQUE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME NOT NULL,
+        used INTEGER DEFAULT 0
+      )`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token)`);
+    },
+    () => {
+      try { db.exec("ALTER TABLE users ADD COLUMN joined_via TEXT DEFAULT 'open'"); } catch {}
+      try { db.exec('ALTER TABLE users ADD COLUMN invited_by INTEGER REFERENCES users(id) ON DELETE SET NULL'); } catch {}
+      try { db.exec("ALTER TABLE invite_tokens ADD COLUMN trip_id INTEGER REFERENCES trips(id) ON DELETE SET NULL"); } catch {}
+    },
+    () => {
+      try { db.exec("ALTER TABLE invite_tokens ADD COLUMN trip_ids TEXT"); } catch {}
+    },
   ];
 
   if (currentVersion < migrations.length) {

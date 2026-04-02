@@ -242,6 +242,10 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'login.mfaHint': 'Open Google Authenticator, Authy, or another TOTP app.',
   'login.mfaBack': '← Back to sign in',
   'login.mfaVerify': 'Verify',
+  'login.forgotPassword': 'Forgot password?',
+  'login.forgotPasswordHint': 'Enter your email to generate a reset link.',
+  'login.forgotPasswordSend': 'Generate reset link',
+  'login.forgotPasswordLinkReady': 'Send this link to the user:',
 
   // Register
   'register.passwordMismatch': 'Passwords do not match',
@@ -298,6 +302,9 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'admin.toast.userCreated': 'User created',
   'admin.toast.createError': 'Failed to create user',
   'admin.toast.fieldsRequired': 'Username, email and password are required',
+  'admin.toast.resetLinkCopied': 'Password reset link copied',
+  'admin.toast.resetLinkError': 'Failed to generate reset link',
+  'admin.resetPasswordLink': 'Generate reset link',
   'admin.createUser': 'Create User',
   'admin.invite.title': 'Invite Links',
   'admin.invite.subtitle': 'Create one-time registration links',
@@ -720,6 +727,8 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'places.endTime': 'End',
   'places.endTimeBeforeStart': 'End time is before start time',
   'places.timeCollision': 'Time overlap with:',
+  'places.addDayEntry': 'Add day',
+  'places.copyTimeToAll': 'Copy time to all days',
   'places.formWebsite': 'Website',
   'places.formNotesPlaceholder': 'Personal notes...',
   'places.formReservation': 'Reservation',
@@ -748,6 +757,7 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'inspector.addRes': 'Reservation',
   'inspector.editRes': 'Edit Reservation',
   'inspector.participants': 'Participants',
+  'inspector.scheduleOverview': 'Schedule Overview',
 
   // Reservations
   'reservations.title': 'Bookings',
@@ -1316,6 +1326,13 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'share.editLabel': 'Edit label',
   'share.nothingShared': 'Nothing shared',
   'share.nothingSharedHint': 'The owner has not enabled any content for this link.',
+  'invite.linkTitle': 'Invite Links',
+  'invite.linkHint': 'Anyone with this link can join the trip as a member — even without an existing account. Links stay active until you revoke them.',
+  'invite.createLink': 'Create invite link',
+  'invite.revokeLink': 'Revoke link',
+  'invite.confirmRevoke': 'Revoke this invite link? Anyone who had it will no longer be able to join.',
+  'invite.revokeError': 'Could not revoke invite link',
+  'invite.createError': 'Could not create invite link',
 }
 
 export default en

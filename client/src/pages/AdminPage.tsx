@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { adminApi, authApi } from '../api/client'
+import { adminApi, authApi, tripsApi } from '../api/client'
 import { useAuthStore } from '../store/authStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { useTranslation } from '../i18n'
@@ -13,7 +13,7 @@ import BackupPanel from '../components/Admin/BackupPanel'
 import GitHubPanel from '../components/Admin/GitHubPanel'
 import AddonManager from '../components/Admin/AddonManager'
 import PackingTemplateManager from '../components/Admin/PackingTemplateManager'
-import { Users, Map, Briefcase, Shield, Trash2, Edit2, Camera, FileText, Eye, EyeOff, Save, CheckCircle, XCircle, Loader2, UserPlus, ArrowUpCircle, ExternalLink, Download, AlertTriangle, RefreshCw, GitBranch, Sun, Link2, Copy, Plus } from 'lucide-react'
+import { Users, Map, Briefcase, Shield, Trash2, Edit2, Camera, FileText, Eye, EyeOff, Save, CheckCircle, XCircle, Loader2, UserPlus, ArrowUpCircle, ExternalLink, Download, AlertTriangle, RefreshCw, GitBranch, Sun, Link2, Copy, Plus, KeyRound } from 'lucide-react'
 import CustomSelect from '../components/shared/CustomSelect'
 
 interface AdminUser {
@@ -25,6 +25,10 @@ interface AdminUser {
   last_login?: string | null
   online?: boolean
   oidc_issuer?: string | null
+  joined_via?: string
+  invited_by?: number | null
+  inviter_username?: string | null
+  first_trip_name?: string | null
 }
 
 interface AdminStats {
@@ -87,7 +91,8 @@ export default function AdminPage(): React.ReactElement {
   // Invite links
   const [invites, setInvites] = useState<any[]>([])
   const [showCreateInvite, setShowCreateInvite] = useState<boolean>(false)
-  const [inviteForm, setInviteForm] = useState<{ max_uses: number; expires_in_days: number | '' }>({ max_uses: 1, expires_in_days: 7 })
+  const [inviteForm, setInviteForm] = useState<{ max_uses: number; expires_in_days: number | ''; trip_ids: string[] }>({ max_uses: 1, expires_in_days: 7, trip_ids: [] })
+  const [adminTrips, setAdminTrips] = useState<any[]>([])
 
   // File types
   const [allowedFileTypes, setAllowedFileTypes] = useState<string>('jpg,jpeg,png,gif,webp,heic,pdf,doc,docx,xls,xlsx,txt,csv')
@@ -124,14 +129,16 @@ export default function AdminPage(): React.ReactElement {
   const loadData = async () => {
     setIsLoading(true)
     try {
-      const [usersData, statsData, invitesData] = await Promise.all([
+      const [usersData, statsData, invitesData, tripsData] = await Promise.all([
         adminApi.users(),
         adminApi.stats(),
         adminApi.listInvites().catch(() => ({ invites: [] })),
+        tripsApi.list().catch(() => []),
       ])
       setUsers(usersData.users)
       setStats(statsData)
       setInvites(invitesData.invites || [])
+      setAdminTrips(tripsData.trips || [])
     } catch (err: unknown) {
       toast.error(t('admin.toast.loadError'))
     } finally {
@@ -257,10 +264,11 @@ export default function AdminPage(): React.ReactElement {
       const data = await adminApi.createInvite({
         max_uses: inviteForm.max_uses,
         expires_in_days: inviteForm.expires_in_days || undefined,
+        trip_ids: inviteForm.trip_ids.length > 0 ? inviteForm.trip_ids.map(Number) : undefined,
       })
       setInvites(prev => [data.invite, ...prev])
       setShowCreateInvite(false)
-      setInviteForm({ max_uses: 1, expires_in_days: 7 })
+      setInviteForm({ max_uses: 1, expires_in_days: 7, trip_ids: [] })
       // Copy link to clipboard
       const link = `${window.location.origin}/register?invite=${data.invite.token}`
       navigator.clipboard.writeText(link).then(() => toast.success(t('admin.invite.copied')))
@@ -318,6 +326,17 @@ export default function AdminPage(): React.ReactElement {
       toast.success(t('admin.toast.userDeleted'))
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, t('admin.toast.deleteError')))
+    }
+  }
+
+  const handleGenerateResetLink = async (user) => {
+    try {
+      const data = await authApi.adminGenerateResetLink(user.id)
+      const url = `${window.location.origin}/reset-password/${data.reset_token}`
+      await navigator.clipboard.writeText(url)
+      toast.success(t('admin.toast.resetLinkCopied'))
+    } catch {
+      toast.error(t('admin.toast.resetLinkError'))
     }
   }
 
@@ -476,6 +495,7 @@ export default function AdminPage(): React.ReactElement {
                         <th className="px-5 py-3">{t('admin.table.user')}</th>
                         <th className="px-5 py-3">{t('admin.table.email')}</th>
                         <th className="px-5 py-3">{t('admin.table.role')}</th>
+                        <th className="px-5 py-3">Joined</th>
                         <th className="px-5 py-3">{t('admin.table.created')}</th>
                         <th className="px-5 py-3">{t('admin.table.lastLogin')}</th>
                         <th className="px-5 py-3 text-right">{t('admin.table.actions')}</th>
@@ -508,8 +528,19 @@ export default function AdminPage(): React.ReactElement {
                                 : 'bg-slate-100 text-slate-600'
                             }`}>
                               {u.role === 'admin' && <Shield className="w-3 h-3" />}
-                              {u.role === 'admin' ? t('settings.roleAdmin') : t('settings.roleUser')}
+                              {u.role === 'admin' ? t('settings.roleAdmin') : u.role === 'guest' ? 'Guest' : t('settings.roleUser')}
                             </span>
+                          </td>
+                          <td className="px-5 py-3 text-sm text-slate-600">
+                            {u.joined_via === 'trip_invite' ? (
+                              <span title={`Invited by ${u.inviter_username || 'Unknown'} to ${u.first_trip_name || 'a trip'}`}>
+                                Trip Invite ({u.inviter_username || '?'}) {u.first_trip_name && <><br/><span className="text-xs text-slate-400">Reise: {u.first_trip_name}</span></>}
+                              </span>
+                            ) : u.joined_via === 'general_invite' ? (
+                              <span title={`Invited by ${u.inviter_username || 'Unknown'}`}>
+                                General Invite {u.first_trip_name && <><br/><span className="text-xs text-slate-400">Reise: {u.first_trip_name}</span></>}
+                              </span>
+                            ) : 'Open'}
                           </td>
                           <td className="px-5 py-3 text-sm text-slate-500">
                             {new Date(u.created_at).toLocaleDateString(locale)}
@@ -518,7 +549,14 @@ export default function AdminPage(): React.ReactElement {
                             {u.last_login ? new Date(u.last_login).toLocaleDateString(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12 }) : '—'}
                           </td>
                           <td className="px-5 py-3">
-                            <div className="flex items-center gap-2 justify-end">
+                          <div className="flex items-center gap-2 justify-end">
+                              <button
+                                onClick={() => handleGenerateResetLink(u)}
+                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title={t('admin.resetPasswordLink')}
+                              >
+                                <KeyRound className="w-4 h-4" />
+                              </button>
                               <button
                                 onClick={() => handleEditUser(u)}
                                 className="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
@@ -586,6 +624,17 @@ export default function AdminPage(): React.ReactElement {
                             {inv.used_count}/{inv.max_uses === 0 ? '∞' : inv.max_uses} {t('admin.invite.uses')}
                             {inv.expires_at && ` · ${t('admin.invite.expiresAt')} ${new Date(inv.expires_at).toLocaleDateString(locale)}`}
                             {` · ${t('admin.invite.createdBy')} ${inv.created_by_name}`}
+                            {(() => {
+                              if (inv.trip_ids) {
+                                try {
+                                  const ids: number[] = JSON.parse(inv.trip_ids)
+                                  const names = ids.map((id: number) => (adminTrips || []).find((t: any) => t.id === id)?.title || `#${id}`)
+                                  if (names.length > 0) return ` · Reisen: ${names.join(', ')}`
+                                } catch {}
+                              }
+                              if (inv.trip_name) return ` · Reise: ${inv.trip_name}`
+                              return null
+                            })()}
                           </div>
                         </div>
                         {isActive && (
@@ -640,6 +689,30 @@ export default function AdminPage(): React.ReactElement {
                     </button>
                   ))}
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Zugewiesene Reisen (Optional)</label>
+                <div className="max-h-40 overflow-y-auto flex flex-col gap-1 rounded-lg border border-slate-200 p-2">
+                  {(adminTrips || []).length === 0 ? (
+                    <p className="text-xs text-slate-400 py-1 px-1">Keine Reisen vorhanden</p>
+                  ) : (adminTrips || []).map((trip: any) => (
+                    <label key={trip.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={inviteForm.trip_ids.includes(String(trip.id))}
+                        onChange={(e) => setInviteForm(f => ({
+                          ...f,
+                          trip_ids: e.target.checked
+                            ? [...f.trip_ids, String(trip.id)]
+                            : f.trip_ids.filter(id => id !== String(trip.id))
+                        }))}
+                        className="rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                      />
+                      <span className="text-sm text-slate-700">{trip.title}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-1 text-xs text-slate-400">Nutzer, der sich registriert, tritt den gewählten Reisen automatisch als Gast bei.</p>
               </div>
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <button onClick={() => setShowCreateInvite(false)} className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700">{t('common.cancel')}</button>
@@ -989,6 +1062,7 @@ export default function AdminPage(): React.ReactElement {
               options={[
                 { value: 'user', label: t('settings.roleUser') },
                 { value: 'admin', label: t('settings.roleAdmin') },
+                { value: 'guest', label: 'Guest' },
               ]}
             />
           </div>
@@ -1056,6 +1130,7 @@ export default function AdminPage(): React.ReactElement {
                 options={[
                   { value: 'user', label: t('settings.roleUser') },
                   { value: 'admin', label: t('settings.roleAdmin') },
+                  { value: 'guest', label: 'Guest' },
                 ]}
               />
             </div>

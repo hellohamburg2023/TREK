@@ -120,6 +120,39 @@ function generateToken(user: { id: number | bigint }) {
   );
 }
 
+const SUPPORTED_LANGS = ['ar', 'br', 'de', 'en', 'es', 'fr', 'nl', 'ru', 'zh'];
+// Countries that use 12-hour clock
+const TWELVE_HOUR_COUNTRIES = new Set(['US', 'AU', 'CA', 'PH', 'IN', 'PK', 'BD', 'MY', 'NG', 'EG', 'SA', 'JO', 'GH', 'KW', 'AE', 'NZ']);
+// Countries that use Fahrenheit
+const FAHRENHEIT_COUNTRIES = new Set(['US', 'LR', 'MM']);
+
+function detectLocaleDefaults(acceptLanguage: string | undefined): { language: string; temperature_unit: string; time_format: string } {
+  const header = acceptLanguage || '';
+  // Parse "de-DE,de;q=0.9,en-US;q=0.8" → [{ lang: 'de', region: 'DE', q: 0.9 }, ...]
+  const parts = header.split(',').map(p => {
+    const [tag, qPart] = p.trim().split(';');
+    const q = qPart ? parseFloat(qPart.split('=')[1]) : 1.0;
+    const [lang, region] = tag.split('-');
+    return { lang: lang.toLowerCase(), region: (region || '').toUpperCase(), q };
+  }).sort((a, b) => b.q - a.q);
+
+  // Pick language: first match against supported langs
+  let language = 'en';
+  for (const { lang } of parts) {
+    if (SUPPORTED_LANGS.includes(lang)) { language = lang; break; }
+  }
+  // pt → br
+  if (language === 'pt') language = 'br';
+
+  // Pick region from highest-priority tag that has one
+  const topRegion = parts.find(p => p.region)?.region || '';
+
+  const temperature_unit = FAHRENHEIT_COUNTRIES.has(topRegion) ? 'fahrenheit' : 'celsius';
+  const time_format = TWELVE_HOUR_COUNTRIES.has(topRegion) ? '12h' : '24h';
+
+  return { language, temperature_unit, time_format };
+}
+
 router.get('/app-config', (_req: Request, res: Response) => {
   const userCount = (db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number }).count;
   const setting = db.prepare("SELECT value FROM app_settings WHERE key = 'allow_registration'").get() as { value: string } | undefined;
@@ -170,7 +203,7 @@ router.get('/invite/:token', authLimiter, (req: Request, res: Response) => {
 });
 
 router.post('/register', authLimiter, (req: Request, res: Response) => {
-  const { username, email, password, invite_token } = req.body;
+  const { username, email, password, invite_token, trip_invite_token } = req.body;
 
   const userCount = (db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number }).count;
 
@@ -183,7 +216,14 @@ router.post('/register', authLimiter, (req: Request, res: Response) => {
     if (validInvite.expires_at && new Date(validInvite.expires_at) < new Date()) return res.status(410).json({ error: 'Invite link has expired' });
   }
 
-  if (userCount > 0 && !validInvite) {
+  // Trip invite token also bypasses allow_registration
+  let validTripInvite: any = null;
+  if (trip_invite_token) {
+    validTripInvite = db.prepare('SELECT * FROM trip_invite_tokens WHERE token = ?').get(trip_invite_token);
+    // Invalid token still allows registration attempt to fail gracefully below
+  }
+
+  if (userCount > 0 && !validInvite && !validTripInvite) {
     if (isOidcOnlyMode()) {
       return res.status(403).json({ error: 'Password authentication is disabled. Please sign in with SSO.' });
     }
@@ -210,7 +250,7 @@ router.post('/register', authLimiter, (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Invalid email format' });
   }
 
-  const existingUser = db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?) OR LOWER(username) = LOWER(?)').get(email, username);
+  const existingUser = db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?)').get(email);
   if (existingUser) {
     return res.status(409).json({ error: 'Registration failed. Please try different credentials.' });
   }
@@ -218,24 +258,70 @@ router.post('/register', authLimiter, (req: Request, res: Response) => {
   const password_hash = bcrypt.hashSync(password, 12);
 
   const isFirstUser = userCount === 0;
-  const role = isFirstUser ? 'admin' : 'user';
+  let role = isFirstUser ? 'admin' : 'user';
+  let joinedVia = 'open';
+  let invitedBy = null;
+
+  if (validTripInvite) {
+    role = 'guest';
+    joinedVia = 'trip_invite';
+    invitedBy = validTripInvite.created_by;
+  } else if (validInvite) {
+    joinedVia = 'general_invite';
+    invitedBy = validInvite.created_by;
+  }
 
   try {
     const result = db.prepare(
-      'INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)'
-    ).run(username, email, password_hash, role);
+      'INSERT INTO users (username, email, password_hash, role, joined_via, invited_by) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(username, email, password_hash, role, joinedVia, invitedBy);
 
     const user = { id: result.lastInsertRowid, username, email, role, avatar: null, mfa_enabled: false };
     const token = generateToken(user);
 
+    // Set default settings for new users based on their browser locale
+    const localeDefaults = detectLocaleDefaults(req.headers['accept-language']);
+    const defaultSettings: Record<string, string> = {
+      language: JSON.stringify(localeDefaults.language),
+      temperature_unit: JSON.stringify(localeDefaults.temperature_unit),
+      time_format: JSON.stringify(localeDefaults.time_format),
+    };
+    const upsertSetting = db.prepare(`
+      INSERT INTO settings (user_id, key, value) VALUES (?, ?, ?)
+      ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value
+    `);
+    for (const [key, value] of Object.entries(defaultSettings)) {
+      upsertSetting.run(result.lastInsertRowid, key, value);
+    }
+
     // Atomically increment invite token usage (prevents race condition)
     if (validInvite) {
       const updated = db.prepare(
-        'UPDATE invite_tokens SET used_count = used_count + 1 WHERE id = ? AND (max_uses = 0 OR used_count < max_uses) RETURNING used_count'
-      ).get(validInvite.id);
+        'UPDATE invite_tokens SET used_count = used_count + 1 WHERE id = ? AND (max_uses = 0 OR used_count < max_uses) RETURNING used_count, trip_id, trip_ids'
+      ).get(validInvite.id) as { used_count: number; trip_id: number | null; trip_ids: string | null } | undefined;
+      
       if (!updated) {
         // Race condition: token was used up between check and now — user was already created, so just log it
         console.warn(`[Auth] Invite token ${validInvite.token.slice(0, 8)}... exceeded max_uses due to race condition`);
+      } else {
+        // Build list of trip IDs to auto-join
+        const tripIdsToJoin: number[] = [];
+        if (updated.trip_ids) {
+          try {
+            const parsed = JSON.parse(updated.trip_ids);
+            if (Array.isArray(parsed)) tripIdsToJoin.push(...parsed.map(Number).filter(n => !isNaN(n) && n > 0));
+          } catch { /* ignore malformed JSON */ }
+        } else if (updated.trip_id) {
+          tripIdsToJoin.push(updated.trip_id);
+        }
+        for (const tid of tripIdsToJoin) {
+          try {
+            db.prepare('INSERT INTO trip_members (trip_id, user_id, role) VALUES (?, ?, ?)')
+              .run(tid, result.lastInsertRowid, 'guest');
+          } catch (e) {
+            console.error('[Auth] Failed to auto-join trip from invite_token:', e);
+          }
+        }
       }
     }
 
@@ -705,4 +791,78 @@ router.post('/mfa/disable', authenticate, rateLimiter(5, RATE_LIMIT_WINDOW), (re
   res.json({ success: true, mfa_enabled: false });
 });
 
+// ── Password reset (token-based, no email required) ──────────────────────────
+
+const RESET_TOKEN_TTL_HOURS = 24;
+
+// Generate a reset token — returns a link. Used by the user themselves ("forgot password")
+// or by an admin on behalf of a user.
+router.post('/forgot-password', (req: Request, res: Response) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
+  const user = db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?)').get(email.trim()) as { id: number } | undefined;
+
+  // Always return 200 to avoid user enumeration
+  if (!user) return res.json({ success: true });
+
+  // Invalidate old tokens for this user
+  db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE user_id = ? AND used = 0').run(user.id);
+
+  const token = require('crypto').randomBytes(32).toString('base64url');
+  const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_HOURS * 60 * 60 * 1000).toISOString();
+  db.prepare('INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)').run(user.id, token, expiresAt);
+
+  res.json({ success: true, reset_token: token });
+});
+
+// Validate a reset token (used by frontend to confirm token is still valid before showing form)
+router.get('/reset-password/:token', (req: Request, res: Response) => {
+  const { token } = req.params;
+  const row = db.prepare('SELECT * FROM password_reset_tokens WHERE token = ? AND used = 0').get(token) as any;
+  if (!row) return res.status(404).json({ error: 'Invalid or expired reset link' });
+  if (new Date(row.expires_at) < new Date()) return res.status(410).json({ error: 'Reset link has expired' });
+  res.json({ valid: true });
+});
+
+// Consume reset token and set new password
+router.post('/reset-password', (req: Request, res: Response) => {
+  const { token, password } = req.body;
+  if (!token || !password) return res.status(400).json({ error: 'Token and password are required' });
+
+  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+    return res.status(400).json({ error: 'Password must contain at least one uppercase letter, one lowercase letter, and one number' });
+  }
+
+  const row = db.prepare('SELECT * FROM password_reset_tokens WHERE token = ? AND used = 0').get(token) as any;
+  if (!row) return res.status(404).json({ error: 'Invalid or expired reset link' });
+  if (new Date(row.expires_at) < new Date()) return res.status(410).json({ error: 'Reset link has expired' });
+
+  const hash = bcrypt.hashSync(password, 12);
+  db.prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(hash, row.user_id);
+  db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE id = ?').run(row.id);
+
+  res.json({ success: true });
+});
+
+// Admin: generate a reset link for any user
+router.post('/admin/reset-link/:userId', authenticate, (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  const admin = db.prepare('SELECT role FROM users WHERE id = ?').get(authReq.user.id) as { role: string } | undefined;
+  if (admin?.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+
+  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.userId) as { id: number } | undefined;
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE user_id = ? AND used = 0').run(user.id);
+
+  const token = require('crypto').randomBytes(32).toString('base64url');
+  const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_HOURS * 60 * 60 * 1000).toISOString();
+  db.prepare('INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)').run(user.id, token, expiresAt);
+
+  res.json({ reset_token: token });
+});
+
+export { detectLocaleDefaults };
 export default router;

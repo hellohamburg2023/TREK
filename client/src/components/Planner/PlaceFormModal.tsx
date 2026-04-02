@@ -4,10 +4,17 @@ import CustomSelect from '../shared/CustomSelect'
 import { mapsApi } from '../../api/client'
 import { useAuthStore } from '../../store/authStore'
 import { useToast } from '../shared/Toast'
-import { Search, Paperclip, X, AlertTriangle } from 'lucide-react'
+import { Search, Paperclip, X, AlertTriangle, Plus, Trash2, Copy } from 'lucide-react'
 import { useTranslation } from '../../i18n'
 import CustomTimePicker from '../shared/CustomTimePicker'
 import type { Place, Category, Assignment } from '../../types'
+
+interface DayTimeEntry {
+  assignment_id: number | null
+  day_id: string
+  place_time: string
+  end_time: string
+}
 
 interface PlaceFormData {
   name: string
@@ -64,6 +71,8 @@ export default function PlaceFormModal({
   onCategoryCreated, assignmentId, dayAssignments = [], days = [], selectedDayId = null,
 }: PlaceFormModalProps) {
   const [form, setForm] = useState(DEFAULT_FORM)
+  const [dayTimeEntries, setDayTimeEntries] = useState<DayTimeEntry[]>([])
+  const [deletedAssignmentIds, setDeletedAssignmentIds] = useState<number[]>([])
   const [mapsSearch, setMapsSearch] = useState('')
   const [mapsResults, setMapsResults] = useState([])
   const [isSearchingMaps, setIsSearchingMaps] = useState(false)
@@ -103,6 +112,19 @@ export default function PlaceFormModal({
         transport_mode: place.transport_mode || 'walking',
         website: place.website || '',
       })
+      // Build multi-day entries for edit mode
+      const placeAssignments = dayAssignments.filter(a => a.place?.id === place.id)
+      const entries: DayTimeEntry[] = placeAssignments.map(a => ({
+        assignment_id: a.id,
+        day_id: String(a.day_id),
+        place_time: a.place?.place_time ?? '',
+        end_time: a.place?.end_time ?? '',
+      }))
+      if (entries.length === 0 && selectedDayId) {
+        entries.push({ assignment_id: null, day_id: String(selectedDayId), place_time: '', end_time: '' })
+      }
+      setDayTimeEntries(entries)
+      setDeletedAssignmentIds([])
     } else if (prefillCoords) {
       setForm({
         ...DEFAULT_FORM,
@@ -111,9 +133,13 @@ export default function PlaceFormModal({
         name: prefillCoords.name || '',
         address: prefillCoords.address || '',
       })
+      setDayTimeEntries([])
+      setDeletedAssignmentIds([])
     } else {
       // New place: start with empty day_id so user chooses explicitly
       setForm({ ...DEFAULT_FORM })
+      setDayTimeEntries([])
+      setDeletedAssignmentIds([])
     }
     setPendingFiles([])
   }, [place, prefillCoords, isOpen, selectedDayId, assignmentId, dayAssignments])
@@ -187,7 +213,10 @@ export default function PlaceFormModal({
     }
   }
 
-  const hasTimeError = place && form.place_time && form.end_time && form.place_time.length >= 5 && form.end_time.length >= 5 && form.end_time <= form.place_time
+  const hasTimeError = !place && form.place_time && form.end_time && form.place_time.length >= 5 && form.end_time.length >= 5 && form.end_time <= form.place_time
+  const editTimeError = place && !form.add_to_all_days && dayTimeEntries.some(
+    e => e.place_time && e.end_time && e.place_time.length >= 5 && e.end_time.length >= 5 && e.end_time <= e.place_time
+  )
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -203,6 +232,8 @@ export default function PlaceFormModal({
         lng: form.lng || null,
         category_id: form.category_id || null,
         _pendingFiles: pendingFiles.length > 0 ? pendingFiles : undefined,
+        _dayTimeEntries: place && !form.add_to_all_days ? dayTimeEntries : undefined,
+        _deletedAssignmentIds: place && !form.add_to_all_days ? deletedAssignmentIds : undefined,
       })
       onClose()
     } catch (err: unknown) {
@@ -387,36 +418,135 @@ export default function PlaceFormModal({
             </label>
           </div>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className={form.add_to_all_days ? 'opacity-40 pointer-events-none' : ''}>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('reservations.day')}</label>
-            <CustomSelect
-              value={form.add_to_all_days ? '' : form.day_id}
-              onChange={value => handleChange('day_id', value)}
-              placeholder="-"
-              options={[
-                { value: '', label: '-' },
-                ...days.map((day, i) => ({
-                  value: String(day.id),
-                  label: day.title || t('dayplan.dayN', { n: day.day_number || i + 1 }),
-                })),
-              ]}
-              size="sm"
-            />
+
+        {/* Edit mode: multi-day time list */}
+        {place && !form.add_to_all_days ? (
+          <div className="space-y-1.5">
+            {dayTimeEntries.map((entry, idx) => {
+              const entryTimeError = entry.place_time && entry.end_time && entry.place_time.length >= 5 && entry.end_time.length >= 5 && entry.end_time <= entry.place_time
+              const usedDayIds = dayTimeEntries.map((e, i) => i !== idx ? e.day_id : null).filter(Boolean)
+              return (
+                <div key={idx} className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    {/* Day selector */}
+                    <div className="w-[38%] shrink-0 min-w-0">
+                      {idx === 0 && <label className="block text-xs font-medium text-gray-500 mb-1">{t('reservations.day')}</label>}
+                      <CustomSelect
+                        value={entry.day_id}
+                        onChange={value => setDayTimeEntries(prev => prev.map((e, i) => i === idx ? { ...e, day_id: value } : e))}
+                        placeholder="-"
+                        options={[
+                          { value: '', label: '-' },
+                          ...days.filter(d => !usedDayIds.includes(String(d.id))).map((day, i) => ({
+                            value: String(day.id),
+                            label: day.title || t('dayplan.dayN', { n: day.day_number || i + 1 }),
+                          })),
+                          ...(entry.day_id ? [{
+                            value: entry.day_id,
+                            label: (() => { const d = days.find(d => String(d.id) === entry.day_id); return d ? (d.title || t('dayplan.dayN', { n: d.day_number || days.indexOf(d) + 1 })) : '-' })()
+                          }] : []),
+                        ].filter((o, i, arr) => arr.findIndex(x => x.value === o.value) === i)}
+                        size="sm"
+                      />
+                    </div>
+                    {/* Start time */}
+                    <div className="flex-1 min-w-0">
+                      {idx === 0 && <label className="block text-xs font-medium text-gray-500 mb-1">{t('places.startTime')}</label>}
+                      <CustomTimePicker
+                        value={entry.place_time}
+                        onChange={v => setDayTimeEntries(prev => prev.map((e, i) => i === idx ? { ...e, place_time: v } : e))}
+                      />
+                    </div>
+                    {/* End time */}
+                    <div className="flex-1 min-w-0">
+                      {idx === 0 && <label className="block text-xs font-medium text-gray-500 mb-1">{t('places.endTime')}</label>}
+                      <CustomTimePicker
+                        value={entry.end_time}
+                        onChange={v => setDayTimeEntries(prev => prev.map((e, i) => i === idx ? { ...e, end_time: v } : e))}
+                      />
+                    </div>
+                    {/* Copy time to all other entries */}
+                    {dayTimeEntries.length > 1 && (entry.place_time || entry.end_time) && (
+                      <button
+                        type="button"
+                        title={t('places.copyTimeToAll')}
+                        onClick={() => setDayTimeEntries(prev => prev.map((e, i) => i === idx ? e : { ...e, place_time: entry.place_time, end_time: entry.end_time }))}
+                        className={`p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors shrink-0${idx === 0 ? ' self-end mb-0.5' : ''}`}
+                      >
+                        <Copy size={14} />
+                      </button>
+                    )}
+                    {/* Spacer when no copy button to keep alignment */}
+                    {!(dayTimeEntries.length > 1 && (entry.place_time || entry.end_time)) && (
+                      <div className={`w-[30px] shrink-0${idx === 0 ? ' self-end mb-0.5' : ''}`} />
+                    )}
+                    {/* Delete entry */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (entry.assignment_id) setDeletedAssignmentIds(prev => [...prev, entry.assignment_id!])
+                        setDayTimeEntries(prev => prev.filter((_, i) => i !== idx))
+                      }}
+                      className={`p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors shrink-0${idx === 0 ? ' self-end mb-0.5' : ''}`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  {entryTimeError && (
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs" style={{ background: 'var(--bg-warning, #fef3c7)', color: 'var(--text-warning, #92400e)' }}>
+                      <AlertTriangle size={12} className="shrink-0" />
+                      {t('places.endTimeBeforeStart')}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+            {days.length > dayTimeEntries.length && (
+              <button
+                type="button"
+                onClick={() => setDayTimeEntries(prev => [...prev, { assignment_id: null, day_id: '', place_time: '', end_time: '' }])}
+                className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 px-2 py-1.5 rounded-lg border border-dashed border-slate-300 hover:border-slate-400 hover:bg-slate-50 transition-colors w-full justify-center"
+              >
+                <Plus size={13} />
+                {t('places.addDayEntry')}
+              </button>
+            )}
           </div>
-          <div className="md:col-span-2">
-            <TimeSection
-              form={form}
-              handleChange={handleChange}
-              assignmentId={assignmentId}
-              dayId={form.day_id ? Number(form.day_id) : null}
-              dayAssignments={dayAssignments}
-              hasTimeError={hasTimeError}
-              placeId={place?.id ?? null}
-              t={t}
-            />
+        ) : (
+          /* New place or "all days": single day + time selector */
+          <div className={`grid grid-cols-1 md:grid-cols-3 gap-3 ${form.add_to_all_days ? '' : ''}`}>
+            {!place && (
+              <div className={form.add_to_all_days ? 'opacity-40 pointer-events-none' : ''}>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('reservations.day')}</label>
+                <CustomSelect
+                  value={form.add_to_all_days ? '' : form.day_id}
+                  onChange={value => handleChange('day_id', value)}
+                  placeholder="-"
+                  options={[
+                    { value: '', label: '-' },
+                    ...days.map((day, i) => ({
+                      value: String(day.id),
+                      label: day.title || t('dayplan.dayN', { n: day.day_number || i + 1 }),
+                    })),
+                  ]}
+                  size="sm"
+                />
+              </div>
+            )}
+            <div className={place ? 'md:col-span-3' : 'md:col-span-2'}>
+              <TimeSection
+                form={form}
+                handleChange={handleChange}
+                assignmentId={assignmentId}
+                dayId={form.day_id ? Number(form.day_id) : null}
+                dayAssignments={dayAssignments}
+                hasTimeError={!!hasTimeError}
+                placeId={place?.id ?? null}
+                t={t}
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Website */}
         <div>
@@ -471,7 +601,7 @@ export default function PlaceFormModal({
           </button>
           <button
             type="submit"
-            disabled={isSaving || hasTimeError}
+            disabled={isSaving || !!hasTimeError || !!editTimeError}
             className="px-6 py-2 bg-slate-900 text-white text-sm rounded-lg hover:bg-slate-700 disabled:opacity-60 font-medium"
           >
             {isSaving ? t('common.saving') : place ? t('common.update') : t('common.add')}

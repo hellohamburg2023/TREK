@@ -241,7 +241,7 @@ router.get('/:id/members', authenticate, (req: Request, res: Response) => {
 
   const trip = db.prepare('SELECT user_id FROM trips WHERE id = ?').get(req.params.id) as { user_id: number };
   const members = db.prepare(`
-    SELECT u.id, u.username, u.email, u.avatar,
+    SELECT u.id, u.username, u.email, u.avatar, u.role as user_role, u.invited_by as user_invited_by,
       CASE WHEN u.id = ? THEN 'owner' ELSE 'member' END as role,
       m.added_at,
       ib.username as invited_by_username
@@ -250,7 +250,7 @@ router.get('/:id/members', authenticate, (req: Request, res: Response) => {
     LEFT JOIN users ib ON ib.id = m.invited_by
     WHERE m.trip_id = ?
     ORDER BY m.added_at ASC
-  `).all(trip.user_id, req.params.id) as { id: number; username: string; email: string; avatar: string | null; role: string; added_at: string; invited_by_username: string | null }[];
+  `).all(trip.user_id, req.params.id) as { id: number; username: string; email: string; avatar: string | null; role: string; added_at: string; invited_by_username: string | null; user_role: string; user_invited_by: number | null }[];
 
   const owner = db.prepare('SELECT id, username, email, avatar FROM users WHERE id = ?').get(trip.user_id) as Pick<User, 'id' | 'username' | 'email' | 'avatar'>;
 
@@ -296,6 +296,17 @@ router.delete('/:id/members/:userId', authenticate, (req: Request, res: Response
   const isSelf = targetId === authReq.user.id;
   if (!isSelf && !isOwner(req.params.id, authReq.user.id))
     return res.status(403).json({ error: 'No permission' });
+
+  if (req.query.delete_account === '1') {
+    if (isSelf) return res.status(400).json({ error: 'Cannot delete own account here' });
+    const targetUser = db.prepare('SELECT role, invited_by FROM users WHERE id = ?').get(targetId) as { role: string; invited_by: number } | undefined;
+    if (!targetUser) return res.status(404).json({ error: 'User not found' });
+    if (targetUser.role !== 'guest' || targetUser.invited_by !== authReq.user.id) {
+      return res.status(403).json({ error: 'You can only delete accounts of guests you invited' });
+    }
+    db.prepare('DELETE FROM users WHERE id = ?').run(targetId);
+    return res.json({ success: true, account_deleted: true });
+  }
 
   db.prepare('DELETE FROM trip_members WHERE trip_id = ? AND user_id = ?').run(req.params.id, targetId);
   res.json({ success: true });

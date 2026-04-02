@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react'
 import Modal from '../shared/Modal'
-import { tripsApi, authApi, shareApi } from '../../api/client'
+import { tripsApi, shareApi, inviteApi } from '../../api/client'
 import { useToast } from '../shared/Toast'
 import { useAuthStore } from '../../store/authStore'
-import { Crown, UserMinus, UserPlus, Users, LogOut, Link2, Check, Copy, Trash2 } from 'lucide-react'
+import { Crown, UserMinus, UserPlus, Users, LogOut, Link2, Check, Copy, Trash2, UserCheck } from 'lucide-react'
 import { useTranslation } from '../../i18n'
 import { getApiErrorMessage } from '../../types'
-import CustomSelect from '../shared/CustomSelect'
 
 interface AvatarProps {
   username: string
@@ -162,6 +161,145 @@ function ShareLinkRow({ link, tripId, onUpdated, onDeleted, t }: { link: ShareLi
   )
 }
 
+interface InviteLink {
+  id: number
+  token: string
+  label: string | null
+  created_at: string
+}
+
+function InviteLinkRow({ link, tripId, onDeleted, onUpdated, t }: { link: InviteLink; tripId: number; onDeleted: (id: number) => void; onUpdated: (l: InviteLink) => void; t: any }) {
+  const [copied, setCopied] = useState(false)
+  const [editingLabel, setEditingLabel] = useState(false)
+  const [labelInput, setLabelInput] = useState(link.label || '')
+  const toast = useToast()
+  const joinUrl = `${window.location.origin}/join/${link.token}`
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(joinUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleDelete = async () => {
+    if (!confirm(t('invite.confirmRevoke'))) return
+    try {
+      await inviteApi.deleteLink(tripId, link.id)
+      onDeleted(link.id)
+    } catch { toast.error(t('invite.revokeError')) }
+  }
+
+  const handleSaveLabel = async () => {
+    try {
+      const d = await inviteApi.updateLink(tripId, link.id, labelInput.trim() || null)
+      onUpdated(d.link)
+      setEditingLabel(false)
+    } catch {}
+  }
+
+  return (
+    <div style={{ border: '1px solid var(--border-primary)', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {editingLabel ? (
+          <>
+            <input
+              autoFocus
+              value={labelInput}
+              onChange={e => setLabelInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleSaveLabel(); if (e.key === 'Escape') setEditingLabel(false) }}
+              placeholder={t('share.labelPlaceholder')}
+              style={{ flex: 1, border: '1px solid var(--border-primary)', borderRadius: 6, padding: '3px 8px', fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit' }}
+            />
+            <button onClick={handleSaveLabel} style={{ padding: '3px 8px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}><Check size={11} /></button>
+          </>
+        ) : (
+          <span
+            onClick={() => setEditingLabel(true)}
+            style={{ flex: 1, fontSize: 12, fontWeight: 500, color: link.label ? 'var(--text-primary)' : 'var(--text-faint)', cursor: 'pointer', borderRadius: 4, padding: '2px 4px' }}
+            title={t('share.editLabel')}
+          >
+            {link.label || t('share.noLabel')}
+          </span>
+        )}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', background: 'var(--bg-tertiary)', borderRadius: 6, border: '1px solid var(--border-faint)', minWidth: 0 }}>
+          <input type="text" value={joinUrl} readOnly style={{ flex: 1, border: 'none', background: 'none', fontSize: 10, color: 'var(--text-primary)', outline: 'none', fontFamily: 'monospace', minWidth: 0 }} />
+        </div>
+        <button onClick={handleCopy} title={t('common.copy')} style={{
+          display: 'flex', alignItems: 'center', gap: 3, padding: '5px 8px', borderRadius: 6,
+          border: 'none', background: copied ? '#16a34a' : 'var(--accent)', color: copied ? 'white' : 'var(--accent-text)',
+          fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'background 0.18s', flexShrink: 0,
+        }}>
+          {copied ? <Check size={10} /> : <Copy size={10} />}
+        </button>
+        <button onClick={handleDelete} title={t('invite.revokeLink')} style={{
+          display: 'flex', alignItems: 'center', padding: '5px 7px', borderRadius: 6,
+          border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.06)',
+          color: '#ef4444', cursor: 'pointer', flexShrink: 0, transition: 'background 0.15s',
+        }}>
+          <Trash2 size={12} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function InviteLinkSection({ tripId, t }: { tripId: number; t: any }) {
+  const [links, setLinks] = useState<InviteLink[]>([])
+  const [loading, setLoading] = useState(true)
+  const [creating, setCreating] = useState(false)
+  const toast = useToast()
+
+  useEffect(() => {
+    inviteApi.getLinks(tripId).then(d => {
+      setLinks(d.links || [])
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [tripId])
+
+  const handleCreate = async () => {
+    setCreating(true)
+    try {
+      const d = await inviteApi.createLink(tripId)
+      setLinks(prev => [...prev, d.link])
+    } catch { toast.error(t('invite.createError')) }
+    finally { setCreating(false) }
+  }
+
+  if (loading) return <div style={{ height: 80, background: 'var(--bg-tertiary)', borderRadius: 10, animation: 'pulse 1.5s ease-in-out infinite' }} />
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <UserCheck size={14} style={{ color: 'var(--text-muted)' }} />
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{t('invite.linkTitle')}</span>
+      </div>
+      <p style={{ fontSize: 11, color: 'var(--text-faint)', lineHeight: 1.5 }}>{t('invite.linkHint')}</p>
+
+      {links.map(link => (
+        <InviteLinkRow
+          key={link.id}
+          link={link}
+          tripId={tripId}
+          onUpdated={(updated) => setLinks(prev => prev.map(l => l.id === updated.id ? updated : l))}
+          onDeleted={(id) => setLinks(prev => prev.filter(l => l.id !== id))}
+          t={t}
+        />
+      ))}
+
+      <button onClick={handleCreate} disabled={creating} style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        width: '100%', padding: '8px 0', borderRadius: 8, border: '1px dashed var(--border-primary)',
+        background: 'none', color: 'var(--text-muted)', fontSize: 12, fontWeight: 500,
+        cursor: creating ? 'wait' : 'pointer', fontFamily: 'inherit', opacity: creating ? 0.6 : 1,
+      }}>
+        <UserCheck size={12} /> {t('invite.createLink')}
+      </button>
+    </div>
+  )
+}
+
 function ShareLinkSection({ tripId, t }: { tripId: number; t: any }) {
   const [links, setLinks] = useState<ShareLink[]>([])
   const [loading, setLoading] = useState(true)
@@ -226,10 +364,7 @@ interface TripMembersModalProps {
 
 export default function TripMembersModal({ isOpen, onClose, tripId, tripTitle }: TripMembersModalProps) {
   const [data, setData] = useState(null)
-  const [allUsers, setAllUsers] = useState([])
   const [loading, setLoading] = useState(false)
-  const [selectedUserId, setSelectedUserId] = useState('')
-  const [adding, setAdding] = useState(false)
   const [removingId, setRemovingId] = useState(null)
   const toast = useToast()
   const { user } = useAuthStore()
@@ -238,7 +373,6 @@ export default function TripMembersModal({ isOpen, onClose, tripId, tripTitle }:
   useEffect(() => {
     if (isOpen && tripId) {
       loadMembers()
-      loadAllUsers()
     }
   }, [isOpen, tripId])
 
@@ -251,29 +385,6 @@ export default function TripMembersModal({ isOpen, onClose, tripId, tripTitle }:
       toast.error(t('members.loadError'))
     } finally {
       setLoading(false)
-    }
-  }
-
-  const loadAllUsers = async () => {
-    try {
-      const d = await authApi.listUsers()
-      setAllUsers(d.users)
-    } catch {}
-  }
-
-  const handleAdd = async () => {
-    if (!selectedUserId) return
-    setAdding(true)
-    try {
-      const target = allUsers.find(u => String(u.id) === String(selectedUserId))
-      await tripsApi.addMember(tripId, target.username)
-      setSelectedUserId('')
-      await loadMembers()
-      toast.success(`${target.username} ${t('members.added')}`)
-    } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, t('members.addError')))
-    } finally {
-      setAdding(false)
     }
   }
 
@@ -294,13 +405,21 @@ export default function TripMembersModal({ isOpen, onClose, tripId, tripTitle }:
     }
   }
 
-  // Users not yet in the trip
-  const existingIds = new Set([
-    data?.owner?.id,
-    ...(data?.members?.map(m => m.id) || []),
-  ])
-  const availableUsers = allUsers.filter(u => !existingIds.has(u.id))
+  const handleDeleteAccount = async (userId) => {
+    if (!confirm('Are you sure you want to permanently delete this user\'s account? This action cannot be undone.')) return
+    setRemovingId(userId)
+    try {
+      await tripsApi.deleteMemberAccount(tripId, userId)
+      await loadMembers()
+      toast.success('Account deleted successfully')
+    } catch (err: any) {
+      toast.error(getApiErrorMessage(err, 'Failed to delete account'))
+    } finally {
+      setRemovingId(null)
+    }
+  }
 
+  // Users not yet in the trip
   const isCurrentOwner = data?.owner?.id === user?.id
   const allMembers = data ? [
     { ...data.owner, role: 'owner' },
@@ -319,45 +438,6 @@ export default function TripMembersModal({ isOpen, onClose, tripId, tripTitle }:
         <div style={{ padding: '10px 14px', background: 'var(--bg-secondary)', borderRadius: 10, border: '1px solid var(--border-secondary)' }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>{t('nav.trip')}</div>
           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{tripTitle}</div>
-        </div>
-
-        {/* Add member dropdown */}
-        <div>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
-            {t('members.inviteUser')}
-          </label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <CustomSelect
-              value={selectedUserId}
-              onChange={value => setSelectedUserId(value)}
-              placeholder={t('members.selectUser')}
-              options={[
-                { value: '', label: t('members.selectUser') },
-                ...availableUsers.map(u => ({
-                  value: u.id,
-                  label: u.username,
-                })),
-              ]}
-              searchable
-              style={{ flex: 1 }}
-              size="sm"
-            />
-            <button
-              onClick={handleAdd}
-              disabled={adding || !selectedUserId}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px',
-                background: 'var(--accent)', color: 'var(--accent-text)', border: 'none', borderRadius: 10,
-                fontSize: 13, fontWeight: 600, cursor: adding || !selectedUserId ? 'default' : 'pointer',
-                fontFamily: 'inherit', opacity: adding || !selectedUserId ? 0.4 : 1, flexShrink: 0,
-              }}
-            >
-              <UserPlus size={13} /> {adding ? '…' : t('members.invite')}
-            </button>
-          </div>
-          {availableUsers.length === 0 && allUsers.length > 0 && (
-            <p style={{ fontSize: 11.5, color: 'var(--text-faint)', margin: '6px 0 0' }}>{t('members.allHaveAccess')}</p>
-          )}
         </div>
 
         {/* Members list */}
@@ -380,6 +460,7 @@ export default function TripMembersModal({ isOpen, onClose, tripId, tripTitle }:
               {allMembers.map(member => {
                 const isSelf = member.id === user?.id
                 const canRemove = isCurrentOwner ? member.role !== 'owner' : isSelf
+                const canDeleteAccount = isCurrentOwner && member.user_role === 'guest' && member.user_invited_by === user?.id
                 return (
                   <div key={member.id} style={{
                     display: 'flex', alignItems: 'center', gap: 10,
@@ -391,6 +472,9 @@ export default function TripMembersModal({ isOpen, onClose, tripId, tripTitle }:
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{member.username}</span>
                         {isSelf && <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>({t('members.you')})</span>}
+                        {member.user_role === 'guest' && (
+                          <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>(Guest)</span>
+                        )}
                         {member.role === 'owner' && (
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, color: '#d97706', background: '#fef9c3', padding: '1px 6px', borderRadius: 99 }}>
                             <Crown size={9} /> {t('members.owner')}
@@ -398,18 +482,32 @@ export default function TripMembersModal({ isOpen, onClose, tripId, tripTitle }:
                         )}
                       </div>
                     </div>
-                    {canRemove && (
-                      <button
-                        onClick={() => handleRemove(member.id, isSelf)}
-                        disabled={removingId === member.id}
-                        title={isSelf ? t('members.leaveTrip') : t('members.removeAccess')}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: 6, display: 'flex', color: 'var(--text-faint)', opacity: removingId === member.id ? 0.4 : 1 }}
-                        onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-                        onMouseLeave={e => e.currentTarget.style.color = '#9ca3af'}
-                      >
-                        {isSelf ? <LogOut size={14} /> : <UserMinus size={14} />}
-                      </button>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {canRemove && (
+                        <button
+                          onClick={() => handleRemove(member.id, isSelf)}
+                          disabled={removingId === member.id}
+                          title={isSelf ? t('members.leaveTrip') : t('members.removeAccess')}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: 6, display: 'flex', color: 'var(--text-faint)', opacity: removingId === member.id ? 0.4 : 1 }}
+                          onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                          onMouseLeave={e => e.currentTarget.style.color = '#9ca3af'}
+                        >
+                          {isSelf ? <LogOut size={14} /> : <UserMinus size={14} />}
+                        </button>
+                      )}
+                      {canDeleteAccount && (
+                        <button
+                          onClick={() => handleDeleteAccount(member.id)}
+                          disabled={removingId === member.id}
+                          title="Delete Guest Account"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: 6, display: 'flex', color: 'var(--text-faint)', opacity: removingId === member.id ? 0.4 : 1 }}
+                          onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                          onMouseLeave={e => e.currentTarget.style.color = '#9ca3af'}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )
               })}
@@ -420,9 +518,15 @@ export default function TripMembersModal({ isOpen, onClose, tripId, tripTitle }:
         <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
         </div>
 
-        {/* Right column: Share Link */}
-        <div style={{ borderLeft: '1px solid var(--border-faint)', paddingLeft: 24 }}>
+        {/* Right column: Share Link + Invite Links */}
+        <div style={{ borderLeft: '1px solid var(--border-faint)', paddingLeft: 24, display: 'flex', flexDirection: 'column', gap: 24 }}>
           <ShareLinkSection tripId={tripId} t={t} />
+          {isCurrentOwner && (
+            <>
+              <div style={{ borderTop: '1px solid var(--border-faint)' }} />
+              <InviteLinkSection tripId={tripId} t={t} />
+            </>
+          )}
         </div>
 
       </div>

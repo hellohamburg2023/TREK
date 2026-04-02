@@ -13,9 +13,14 @@ const router = express.Router();
 router.use(authenticate, adminOnly);
 
 router.get('/users', (req: Request, res: Response) => {
-  const users = db.prepare(
-    'SELECT id, username, email, role, created_at, updated_at, last_login FROM users ORDER BY created_at DESC'
-  ).all() as Pick<User, 'id' | 'username' | 'email' | 'role' | 'created_at' | 'updated_at' | 'last_login'>[];
+  const users = db.prepare(`
+    SELECT u.id, u.username, u.email, u.role, u.created_at, u.last_login,
+           u.joined_via, u.invited_by, inv.username as inviter_username,
+           (SELECT t.title FROM trip_members tm JOIN trips t ON tm.trip_id = t.id WHERE tm.user_id = u.id ORDER BY tm.added_at ASC LIMIT 1) as first_trip_name
+    FROM users u
+    LEFT JOIN users inv ON u.invited_by = inv.id
+    ORDER BY u.created_at DESC
+  `).all() as (Pick<User, 'id' | 'username' | 'email' | 'role' | 'created_at' | 'last_login'> & { joined_via: string; invited_by: number | null; inviter_username: string | null; first_trip_name: string | null; })[];
   let onlineUserIds = new Set<number>();
   try {
     const { getOnlineUserIds } = require('../websocket');
@@ -32,7 +37,7 @@ router.post('/users', (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Username, email and password are required' });
   }
 
-  if (role && !['user', 'admin'].includes(role)) {
+  if (role && !['user', 'admin', 'guest'].includes(role)) {
     return res.status(400).json({ error: 'Invalid role' });
   }
 
@@ -49,7 +54,7 @@ router.post('/users', (req: Request, res: Response) => {
   ).run(username.trim(), email.trim(), passwordHash, role || 'user');
 
   const user = db.prepare(
-    'SELECT id, username, email, role, created_at, updated_at FROM users WHERE id = ?'
+    'SELECT id, username, email, role, created_at FROM users WHERE id = ?'
   ).get(result.lastInsertRowid);
 
   res.status(201).json({ user });
@@ -61,7 +66,7 @@ router.put('/users/:id', (req: Request, res: Response) => {
 
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  if (role && !['user', 'admin'].includes(role)) {
+  if (role && !['user', 'admin', 'guest'].includes(role)) {
     return res.status(400).json({ error: 'Invalid role' });
   }
 
@@ -81,13 +86,12 @@ router.put('/users/:id', (req: Request, res: Response) => {
       username = COALESCE(?, username),
       email = COALESCE(?, email),
       role = COALESCE(?, role),
-      password_hash = COALESCE(?, password_hash),
-      updated_at = CURRENT_TIMESTAMP
+      password_hash = COALESCE(?, password_hash)
     WHERE id = ?
   `).run(username || null, email || null, role || null, passwordHash, req.params.id);
 
   const updated = db.prepare(
-    'SELECT id, username, email, role, created_at, updated_at FROM users WHERE id = ?'
+    'SELECT id, username, email, role, created_at FROM users WHERE id = ?'
   ).get(req.params.id);
 
   res.json({ user: updated });
@@ -241,9 +245,10 @@ router.post('/update', async (_req: Request, res: Response) => {
 
 router.get('/invites', (_req: Request, res: Response) => {
   const invites = db.prepare(`
-    SELECT i.*, u.username as created_by_name
+    SELECT i.*, u.username as created_by_name, t.title as trip_name
     FROM invite_tokens i
     JOIN users u ON i.created_by = u.id
+    LEFT JOIN trips t ON i.trip_id = t.id
     ORDER BY i.created_at DESC
   `).all();
   res.json({ invites });
@@ -251,7 +256,7 @@ router.get('/invites', (_req: Request, res: Response) => {
 
 router.post('/invites', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
-  const { max_uses, expires_in_days } = req.body;
+  const { max_uses, expires_in_days, trip_ids } = req.body;
 
   const rawUses = parseInt(max_uses);
   const uses = rawUses === 0 ? 0 : Math.min(Math.max(rawUses || 1, 1), 5);
@@ -260,14 +265,19 @@ router.post('/invites', (req: Request, res: Response) => {
     ? new Date(Date.now() + parseInt(expires_in_days) * 86400000).toISOString()
     : null;
 
+  const validTripIds = Array.isArray(trip_ids) ? trip_ids.filter(Boolean).map(Number).filter(n => !isNaN(n) && n > 0) : [];
+  const tripIdsJson = validTripIds.length > 0 ? JSON.stringify(validTripIds) : null;
+  const primaryTripId = validTripIds.length > 0 ? validTripIds[0] : null;
+
   db.prepare(
-    'INSERT INTO invite_tokens (token, max_uses, expires_at, created_by) VALUES (?, ?, ?, ?)'
-  ).run(token, uses, expiresAt, authReq.user.id);
+    'INSERT INTO invite_tokens (token, max_uses, expires_at, created_by, trip_id, trip_ids) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(token, uses, expiresAt, authReq.user.id, primaryTripId, tripIdsJson);
 
   const invite = db.prepare(`
-    SELECT i.*, u.username as created_by_name
+    SELECT i.*, u.username as created_by_name, t.title as trip_name
     FROM invite_tokens i
     JOIN users u ON i.created_by = u.id
+    LEFT JOIN trips t ON i.trip_id = t.id
     WHERE i.id = last_insert_rowid()
   `).get();
 

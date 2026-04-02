@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import { db } from '../db/database';
 import { JWT_SECRET } from '../config';
 import { User } from '../types';
+import { detectLocaleDefaults } from './auth';
 
 interface OidcDiscoveryDoc {
   authorization_endpoint: string;
@@ -215,6 +216,16 @@ router.get('/callback', async (req: Request, res: Response) => {
       ).run(username, email, hash, role, sub, config.issuer);
 
       user = { id: Number(result.lastInsertRowid), username, email, role } as User;
+
+      // Set default settings based on browser locale
+      const localeDefaults = detectLocaleDefaults(req.headers['accept-language']);
+      const upsertSetting = db.prepare(`
+        INSERT INTO settings (user_id, key, value) VALUES (?, ?, ?)
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value
+      `);
+      upsertSetting.run(user.id, 'language', JSON.stringify(localeDefaults.language));
+      upsertSetting.run(user.id, 'temperature_unit', JSON.stringify(localeDefaults.temperature_unit));
+      upsertSetting.run(user.id, 'time_format', JSON.stringify(localeDefaults.time_format));
     }
 
     db.prepare('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?').run(user.id);

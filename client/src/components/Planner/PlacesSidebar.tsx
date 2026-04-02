@@ -250,14 +250,14 @@ export default function PlacesSidebar({
             </span>
           </div>
           {(timeStr || (!activeDayId && dayLabel != null)) ? (
-            <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
+            <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
               {!activeDayId && dayLabel != null && (
                 <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500, lineHeight: 1.2 }}>
                   {dayLabel}{timeStr ? ' ·' : ''}
                 </span>
               )}
               {timeStr && (
-                <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, lineHeight: 1.2 }}>{timeStr}</span>
+                <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, lineHeight: 1.2, flexShrink: 0 }}>{timeStr}</span>
               )}
             </div>
           ) : (place.description || place.address || cat?.name) ? (

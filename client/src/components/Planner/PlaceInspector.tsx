@@ -426,6 +426,72 @@ export default function PlaceInspector({
             )
           })()}
 
+          {/* Schedule Overview — all days this place is planned */}
+          {(() => {
+            const scheduledEntries: { day: Day; assignment: Assignment }[] = []
+            for (const [dayIdStr, dayAssignmentList] of Object.entries(assignments)) {
+              const match = dayAssignmentList.find(a => a.place?.id === place.id)
+              if (match) {
+                const day = days?.find(d => d.id === Number(dayIdStr))
+                if (day) scheduledEntries.push({ day, assignment: match })
+              }
+            }
+            scheduledEntries.sort((a, b) => (a.day.day_number ?? 0) - (b.day.day_number ?? 0))
+            if (scheduledEntries.length === 0) return null
+            return (
+              <div style={{ background: 'var(--bg-hover)', borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderBottom: scheduledEntries.length > 0 ? '1px solid var(--border-faint)' : 'none' }}>
+                  <CalendarDays size={13} color="#9ca3af" />
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>{t('inspector.scheduleOverview')}</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', maxHeight: scheduledEntries.length > 4 ? 220 : undefined, overflowY: scheduledEntries.length > 4 ? 'auto' : undefined }}>
+                  {scheduledEntries.map(({ day, assignment }, i) => {
+                    const pt = assignment.place?.place_time
+                    const et = assignment.place?.end_time
+                    const isSelected = day.id === selectedDayId
+                    const isPast = day.date ? new Date(day.date + 'T23:59:59') < new Date() : false
+                    return (
+                      <div key={assignment.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '7px 12px',
+                        borderTop: i > 0 ? '1px solid var(--border-faint)' : 'none',
+                        background: isSelected ? 'var(--accent-alpha)' : 'transparent',
+                        opacity: isPast ? 0.6 : 1,
+                      }}>
+                        <div style={{
+                          width: 24, height: 24, borderRadius: '50%',
+                          background: isSelected ? 'var(--accent)' : 'var(--bg-tertiary)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 11, fontWeight: 700,
+                          color: isSelected ? 'var(--accent-text)' : 'var(--text-secondary)',
+                          flexShrink: 0,
+                        }}>{day.day_number ?? i + 1}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {day.title || t('dayplan.dayN', { n: day.day_number ?? i + 1 })}
+                          </div>
+                          {day.date && (
+                            <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 1 }}>
+                              {new Date(day.date + 'T00:00:00').toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                            </div>
+                          )}
+                        </div>
+                        {pt && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                            <Clock size={11} color="#9ca3af" />
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                              {formatTime(pt, locale, timeFormat)}{et ? ` – ${formatTime(et, locale, timeFormat)}` : ''}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
+
           {/* Opening hours + Files — side by side on desktop only if both exist */}
           <div className={`grid grid-cols-1 ${openingHours?.length > 0 ? 'sm:grid-cols-2' : ''} gap-2`}>
           {openingHours && openingHours.length > 0 && (

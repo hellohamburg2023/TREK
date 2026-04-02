@@ -650,6 +650,8 @@ const zh: Record<string, string> = {
   'places.endTime': '结束',
   'places.endTimeBeforeStart': '结束时间早于开始时间',
   'places.timeCollision': '时间冲突：',
+  'places.addDayEntry': '添加天数',
+  'places.copyTimeToAll': '将时间复制到所有天',
   'places.formWebsite': '网站',
   'places.formNotesPlaceholder': '个人备注...',
   'places.formReservation': '预订',
@@ -678,6 +680,7 @@ const zh: Record<string, string> = {
   'inspector.addRes': '预订',
   'inspector.editRes': '编辑预订',
   'inspector.participants': '参与者',
+  'inspector.scheduleOverview': '行程安排',
 
   // Reservations
   'reservations.title': '预订',

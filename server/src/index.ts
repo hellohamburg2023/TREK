@@ -166,6 +166,9 @@ app.use('/api/backup', backupRoutes);
 import shareRoutes from './routes/share';
 app.use('/api', shareRoutes);
 
+import inviteLinksRoutes from './routes/inviteLinks';
+app.use('/api', inviteLinksRoutes);
+
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
   const publicPath = path.join(__dirname, '../public');

@@ -27,6 +27,15 @@ export default function LoginPage(): React.ReactElement {
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null)
   const [inviteToken, setInviteToken] = useState<string>('')
   const [inviteValid, setInviteValid] = useState<boolean>(false)
+  const [nextPath, setNextPath] = useState<string>('')
+  const [joinInviteValid, setJoinInviteValid] = useState<boolean>(false)
+  const [joinToken, setJoinToken] = useState<string>('')
+  const [forgotMode, setForgotMode] = useState<boolean>(false)
+  const [forgotEmail, setForgotEmail] = useState<string>('')
+  const [forgotLoading, setForgotLoading] = useState<boolean>(false)
+  const [forgotResetUrl, setForgotResetUrl] = useState<string>('')
+  const [forgotError, setForgotError] = useState<string>('')
+  const [forgotCopied, setForgotCopied] = useState<boolean>(false)
 
   const { login, register, demoLogin, completeMfaLogin } = useAuthStore()
   const { setLanguageLocal } = useSettingsStore()
@@ -49,6 +58,19 @@ export default function LoginPage(): React.ReactElement {
 
     // Handle query params (invite token, OIDC callback)
     const params = new URLSearchParams(window.location.search)
+
+    // Store ?next= redirect target (e.g. from /join/:token flow)
+    const next = params.get('next')
+    if (next && next.startsWith('/')) setNextPath(next)
+
+    // Check for trip invite link (?joinToken=) — unlocks register tab
+    const joinToken = params.get('joinToken')
+    if (joinToken) {
+      setJoinToken(joinToken)
+      fetch(`/api/join/${encodeURIComponent(joinToken)}`)
+        .then(r => { if (r.ok) setJoinInviteValid(true) })
+        .catch(() => {})
+    }
 
     // Check for invite token in URL (/register?invite=xxx or /login?invite=xxx)
     const invite = params.get('invite')
@@ -107,6 +129,28 @@ export default function LoginPage(): React.ReactElement {
     }
   }
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setForgotError('')
+    setForgotLoading(true)
+    try {
+      const data = await authApi.forgotPassword(forgotEmail)
+      const url = `${window.location.origin}/reset-password/${data.reset_token}`
+      setForgotResetUrl(url)
+    } catch {
+      setForgotError('E-Mail-Adresse nicht gefunden.')
+    } finally {
+      setForgotLoading(false)
+    }
+  }
+
+  const handleCopyResetUrl = () => {
+    navigator.clipboard.writeText(forgotResetUrl).then(() => {
+      setForgotCopied(true)
+      setTimeout(() => setForgotCopied(false), 2000)
+    })
+  }
+
   const [showTakeoff, setShowTakeoff] = useState<boolean>(false)
   const [mfaStep, setMfaStep] = useState(false)
   const [mfaToken, setMfaToken] = useState('')
@@ -125,13 +169,13 @@ export default function LoginPage(): React.ReactElement {
         }
         await completeMfaLogin(mfaToken, mfaCode)
         setShowTakeoff(true)
-        setTimeout(() => navigate('/dashboard'), 2600)
+        setTimeout(() => navigate(nextPath || '/dashboard'), 2600)
         return
       }
       if (mode === 'register') {
         if (!username.trim()) { setError('Username is required'); setIsLoading(false); return }
         if (password.length < 6) { setError('Password must be at least 6 characters'); setIsLoading(false); return }
-        await register(username, email, password, inviteToken || undefined)
+        await register(username, email, password, inviteToken || undefined, joinToken || undefined)
       } else {
         const result = await login(email, password)
         if ('mfa_required' in result && result.mfa_required && 'mfa_token' in result) {
@@ -143,14 +187,14 @@ export default function LoginPage(): React.ReactElement {
         }
       }
       setShowTakeoff(true)
-      setTimeout(() => navigate('/dashboard'), 2600)
+      setTimeout(() => navigate(nextPath || '/dashboard'), 2600)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : t('login.error'))
       setIsLoading(false)
     }
   }
 
-  const showRegisterOption = (appConfig?.allow_registration || !appConfig?.has_users || inviteValid) && !appConfig?.oidc_only_mode
+  const showRegisterOption = (appConfig?.allow_registration || !appConfig?.has_users || inviteValid || joinInviteValid) && !appConfig?.oidc_only_mode
 
   // In OIDC-only mode, show a minimal page that redirects directly to the IdP
   const oidcOnly = appConfig?.oidc_only_mode && appConfig?.oidc_configured
@@ -575,7 +619,7 @@ export default function LoginPage(): React.ReactElement {
                     <User size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', pointerEvents: 'none' }} />
                     <input
                       type="text" value={username} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)} required
-                      placeholder="admin" style={inputBase}
+                      placeholder="Name" style={inputBase}
                       onFocus={(e: React.FocusEvent<HTMLInputElement>) => e.target.style.borderColor = '#111827'}
                       onBlur={(e: React.FocusEvent<HTMLInputElement>) => e.target.style.borderColor = '#e5e7eb'}
                     />
@@ -602,7 +646,14 @@ export default function LoginPage(): React.ReactElement {
               {/* Password */}
               {!(mode === 'login' && mfaStep) && (
               <div>
-                <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: '#374151', marginBottom: 6 }}>{t('common.password')}</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 12.5, fontWeight: 600, color: '#374151' }}>{t('common.password')}</label>
+                  {mode === 'login' && (
+                    <button type="button" onClick={() => { setForgotMode(v => !v); setForgotResetUrl(''); setForgotError(''); setForgotEmail(email) }} style={{ background: 'none', border: 'none', fontSize: 11.5, color: '#6b7280', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>
+                      {t('login.forgotPassword')}
+                    </button>
+                  )}
+                </div>
                 <div style={{ position: 'relative' }}>
                   <Lock size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', pointerEvents: 'none' }} />
                   <input
@@ -618,6 +669,46 @@ export default function LoginPage(): React.ReactElement {
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
+
+                {/* Forgot password inline panel */}
+                {forgotMode && mode === 'login' && (
+                  <div style={{ marginTop: 10, padding: '14px 16px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                    {!forgotResetUrl ? (
+                      <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <p style={{ margin: 0, fontSize: 12, color: '#475569', fontWeight: 500 }}>{t('login.forgotPasswordHint')}</p>
+                        <input
+                          type="email" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} required
+                          placeholder={t('common.email')}
+                          style={{ ...inputBase, padding: '8px 10px', fontSize: 13 }}
+                          onFocus={(e: React.FocusEvent<HTMLInputElement>) => e.target.style.borderColor = '#111827'}
+                          onBlur={(e: React.FocusEvent<HTMLInputElement>) => e.target.style.borderColor = '#e5e7eb'}
+                        />
+                        {forgotError && <p style={{ margin: 0, fontSize: 12, color: '#ef4444' }}>{forgotError}</p>}
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button type="submit" disabled={forgotLoading} style={{ flex: 1, padding: '7px 12px', background: '#111827', color: 'white', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                            {forgotLoading ? '…' : t('login.forgotPasswordSend')}
+                          </button>
+                          <button type="button" onClick={() => setForgotMode(false)} style={{ padding: '7px 12px', background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#6b7280', cursor: 'pointer', fontFamily: 'inherit' }}>
+                            {t('common.cancel')}
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <p style={{ margin: 0, fontSize: 12, color: '#475569', fontWeight: 500 }}>{t('login.forgotPasswordLinkReady')}</p>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <input readOnly value={forgotResetUrl} style={{ ...inputBase, padding: '7px 10px', fontSize: 11, flex: 1, background: '#f1f5f9', color: '#475569' }} onClick={e => (e.target as HTMLInputElement).select()} />
+                          <button type="button" onClick={handleCopyResetUrl} style={{ padding: '7px 10px', background: forgotCopied ? '#16a34a' : '#111827', color: 'white', border: 'none', borderRadius: 8, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                            <Copy size={12} />{forgotCopied ? t('common.copied') : t('common.copy')}
+                          </button>
+                        </div>
+                        <button type="button" onClick={() => { setForgotMode(false); setForgotResetUrl('') }} style={{ alignSelf: 'flex-end', background: 'none', border: 'none', fontSize: 11.5, color: '#6b7280', cursor: 'pointer', fontFamily: 'inherit' }}>
+                          {t('common.close')}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               )}
 

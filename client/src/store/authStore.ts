@@ -26,7 +26,7 @@ interface AuthState {
 
   login: (email: string, password: string) => Promise<LoginResult>
   completeMfaLogin: (mfaToken: string, code: string) => Promise<AuthResponse>
-  register: (username: string, email: string, password: string) => Promise<AuthResponse>
+  register: (username: string, email: string, password: string, invite_token?: string, trip_invite_token?: string) => Promise<AuthResponse>
   logout: () => void
   loadUser: () => Promise<void>
   updateMapsKey: (key: string | null) => Promise<void>
@@ -94,10 +94,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  register: async (username: string, email: string, password: string, invite_token?: string) => {
+  register: async (username: string, email: string, password: string, invite_token?: string, trip_invite_token?: string) => {
     set({ isLoading: true, error: null })
     try {
-      const data = await authApi.register({ username, email, password, invite_token })
+      const data = await authApi.register({ username, email, password, invite_token, trip_invite_token })
       localStorage.setItem('auth_token', data.token)
       set({
         user: data.user,

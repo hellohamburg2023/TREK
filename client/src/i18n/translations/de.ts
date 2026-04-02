@@ -242,6 +242,10 @@ const de: Record<string, string | { name: string; category: string }[]> = {
   'login.mfaHint': 'Google Authenticator, Authy oder eine andere TOTP-App öffnen.',
   'login.mfaBack': '← Zurück zur Anmeldung',
   'login.mfaVerify': 'Bestätigen',
+  'login.forgotPassword': 'Passwort vergessen?',
+  'login.forgotPasswordHint': 'Gib deine E-Mail-Adresse ein, um einen Reset-Link zu erhalten.',
+  'login.forgotPasswordSend': 'Reset-Link erstellen',
+  'login.forgotPasswordLinkReady': 'Sende diesen Link an den Benutzer:',
 
   // Register
   'register.passwordMismatch': 'Passwörter stimmen nicht überein',
@@ -298,6 +302,9 @@ const de: Record<string, string | { name: string; category: string }[]> = {
   'admin.toast.userCreated': 'Benutzer erstellt',
   'admin.toast.createError': 'Fehler beim Erstellen des Benutzers',
   'admin.toast.fieldsRequired': 'Benutzername, E-Mail und Passwort sind erforderlich',
+  'admin.toast.resetLinkCopied': 'Passwort-Reset-Link kopiert',
+  'admin.toast.resetLinkError': 'Reset-Link konnte nicht erstellt werden',
+  'admin.resetPasswordLink': 'Passwort-Reset-Link erstellen',
   'admin.createUser': 'Benutzer anlegen',
   'admin.invite.title': 'Einladungslinks',
   'admin.invite.subtitle': 'Einmal-Links für die Registrierung erstellen',
@@ -718,6 +725,8 @@ const de: Record<string, string | { name: string; category: string }[]> = {
   'places.endTime': 'Ende',
   'places.endTimeBeforeStart': 'Endzeit liegt vor der Startzeit',
   'places.timeCollision': 'Zeitliche Überschneidung mit:',
+  'places.addDayEntry': 'Tag hinzufügen',
+  'places.copyTimeToAll': 'Uhrzeit auf alle Tage übertragen',
   'places.formWebsite': 'Website',
   'places.formNotesPlaceholder': 'Persönliche Notizen...',
   'places.formReservation': 'Reservierung',
@@ -746,6 +755,7 @@ const de: Record<string, string | { name: string; category: string }[]> = {
   'inspector.addRes': 'Reservierung',
   'inspector.editRes': 'Reservierung bearbeiten',
   'inspector.participants': 'Teilnehmer',
+  'inspector.scheduleOverview': 'Planungsübersicht',
 
   // Reservations
   'reservations.title': 'Buchungen',
@@ -1315,6 +1325,13 @@ const de: Record<string, string | { name: string; category: string }[]> = {
   'share.editLabel': 'Bezeichnung bearbeiten',
   'share.nothingShared': 'Nichts geteilt',
   'share.nothingSharedHint': 'Der Inhaber hat für diesen Link keinen Inhalt freigegeben.',
+  'invite.linkTitle': 'Einladungslinks',
+  'invite.linkHint': 'Jeder mit diesem Link kann der Reise als Mitglied beitreten – auch ohne bestehenden Account. Links bleiben aktiv bis du sie widerrufst.',
+  'invite.createLink': 'Einladungslink erstellen',
+  'invite.revokeLink': 'Link widerrufen',
+  'invite.confirmRevoke': 'Diesen Einladungslink widerrufen? Alle, die ihn hatten, können der Reise damit nicht mehr beitreten.',
+  'invite.revokeError': 'Einladungslink konnte nicht widerrufen werden',
+  'invite.createError': 'Einladungslink konnte nicht erstellt werden',
 }
 
 export default de

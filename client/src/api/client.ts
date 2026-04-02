@@ -39,7 +39,7 @@ apiClient.interceptors.response.use(
 )
 
 export const authApi = {
-  register: (data: { username: string; email: string; password: string; invite_token?: string }) => apiClient.post('/auth/register', data).then(r => r.data),
+  register: (data: { username: string; email: string; password: string; invite_token?: string; trip_invite_token?: string }) => apiClient.post('/auth/register', data).then(r => r.data),
   validateInvite: (token: string) => apiClient.get(`/auth/invite/${token}`).then(r => r.data),
   login: (data: { email: string; password: string }) => apiClient.post('/auth/login', data).then(r => r.data),
   verifyMfaLogin: (data: { mfa_token: string; code: string }) => apiClient.post('/auth/mfa/verify-login', data).then(r => r.data),
@@ -61,6 +61,10 @@ export const authApi = {
   changePassword: (data: { current_password: string; new_password: string }) => apiClient.put('/auth/me/password', data).then(r => r.data),
   deleteOwnAccount: () => apiClient.delete('/auth/me').then(r => r.data),
   demoLogin: () => apiClient.post('/auth/demo-login').then(r => r.data),
+  forgotPassword: (email: string) => apiClient.post('/auth/forgot-password', { email }).then(r => r.data),
+  validateResetToken: (token: string) => apiClient.get(`/auth/reset-password/${token}`).then(r => r.data),
+  resetPassword: (token: string, password: string) => apiClient.post('/auth/reset-password', { token, password }).then(r => r.data),
+  adminGenerateResetLink: (userId: number) => apiClient.post(`/auth/admin/reset-link/${userId}`).then(r => r.data),
 }
 
 export const tripsApi = {
@@ -75,6 +79,7 @@ export const tripsApi = {
   getMembers: (id: number | string) => apiClient.get(`/trips/${id}/members`).then(r => r.data),
   addMember: (id: number | string, identifier: string) => apiClient.post(`/trips/${id}/members`, { identifier }).then(r => r.data),
   removeMember: (id: number | string, userId: number) => apiClient.delete(`/trips/${id}/members/${userId}`).then(r => r.data),
+  deleteMemberAccount: (id: number | string, userId: number) => apiClient.delete(`/trips/${id}/members/${userId}?delete_account=1`).then(r => r.data),
 }
 
 export const daysApi = {
@@ -161,7 +166,7 @@ export const adminApi = {
   updateTemplateItem: (templateId: number, itemId: number, data: { name: string }) => apiClient.put(`/admin/packing-templates/${templateId}/items/${itemId}`, data).then(r => r.data),
   deleteTemplateItem: (templateId: number, itemId: number) => apiClient.delete(`/admin/packing-templates/${templateId}/items/${itemId}`).then(r => r.data),
   listInvites: () => apiClient.get('/admin/invites').then(r => r.data),
-  createInvite: (data: { max_uses: number; expires_in_days?: number }) => apiClient.post('/admin/invites', data).then(r => r.data),
+  createInvite: (data: { max_uses: number; expires_in_days?: number; trip_ids?: number[] }) => apiClient.post('/admin/invites', data).then(r => r.data),
   deleteInvite: (id: number) => apiClient.delete(`/admin/invites/${id}`).then(r => r.data),
 }
 
@@ -301,6 +306,15 @@ export const shareApi = {
   updateLink: (tripId: number | string, id: number, data: Record<string, unknown>) => apiClient.put(`/trips/${tripId}/share-link/${id}`, data).then(r => r.data),
   deleteLink: (tripId: number | string, id: number) => apiClient.delete(`/trips/${tripId}/share-link/${id}`).then(r => r.data),
   getSharedTrip: (token: string) => apiClient.get(`/shared/${token}`).then(r => r.data),
+}
+
+export const inviteApi = {
+  getLinks: (tripId: number | string) => apiClient.get(`/trips/${tripId}/invite-links`).then(r => r.data),
+  createLink: (tripId: number | string, label?: string) => apiClient.post(`/trips/${tripId}/invite-links`, { label: label || null }).then(r => r.data),
+  updateLink: (tripId: number | string, id: number, label: string | null) => apiClient.patch(`/trips/${tripId}/invite-links/${id}`, { label }).then(r => r.data),
+  deleteLink: (tripId: number | string, id: number) => apiClient.delete(`/trips/${tripId}/invite-links/${id}`).then(r => r.data),
+  previewJoin: (token: string) => apiClient.get(`/join/${token}`).then(r => r.data),
+  joinTrip: (token: string) => apiClient.post(`/join/${token}`).then(r => r.data),
 }
 
 export default apiClient

@@ -656,6 +656,8 @@ const ar: Record<string, string | { name: string; category: string }[]> = {
   'places.endTime': 'النهاية',
   'places.endTimeBeforeStart': 'وقت النهاية قبل وقت البداية',
   'places.timeCollision': 'تداخل في الوقت مع:',
+  'places.addDayEntry': 'إضافة يوم',
+  'places.copyTimeToAll': 'نسخ الوقت إلى جميع الأيام',
   'places.formWebsite': 'الموقع الإلكتروني',
   'places.formNotesPlaceholder': 'ملاحظات شخصية...',
   'places.formReservation': 'حجز',
@@ -685,6 +687,7 @@ const ar: Record<string, string | { name: string; category: string }[]> = {
   'inspector.addRes': 'حجز',
   'inspector.editRes': 'تعديل الحجز',
   'inspector.participants': 'المشاركون',
+  'inspector.scheduleOverview': 'نظرة عامة على الجدول',
 
   // Reservations
   'reservations.title': 'الحجوزات',

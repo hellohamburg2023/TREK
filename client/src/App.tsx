@@ -12,6 +12,8 @@ import SettingsPage from './pages/SettingsPage'
 import VacayPage from './pages/VacayPage'
 import AtlasPage from './pages/AtlasPage'
 import SharedTripPage from './pages/SharedTripPage'
+import JoinTripPage from './pages/JoinTripPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 import { ToastContainer } from './components/shared/Toast'
 import { TranslationProvider, useTranslation } from './i18n'
 import DemoBanner from './components/Layout/DemoBanner'
@@ -109,6 +111,7 @@ export default function App() {
         <Route path="/" element={<RootRedirect />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<LoginPage />} />
+        <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
         <Route
           path="/dashboard"
           element={
@@ -166,6 +169,7 @@ export default function App() {
           }
         />
         <Route path="/shared/:token" element={<SharedTripPage />} />
+        <Route path="/join/:token" element={<JoinTripPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </TranslationProvider>
