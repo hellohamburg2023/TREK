@@ -1,4 +1,10 @@
 import Database from 'better-sqlite3';
+import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
+
+function generateUrlHash(userId: number): string {
+  return crypto.createHash('sha256').update('trek-user-' + userId).digest('hex').slice(0, 8);
+}
 
 function runMigrations(db: Database.Database): void {
   db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)');
@@ -534,6 +540,56 @@ function runMigrations(db: Database.Database): void {
     },
     () => {
       try { db.exec("ALTER TABLE invite_tokens ADD COLUMN trip_ids TEXT"); } catch {}
+    },
+    () => {
+      // Add uuid to trips and url_hash to users for user-based, human-friendly URLs
+      try { db.exec('ALTER TABLE trips ADD COLUMN uuid TEXT'); } catch {}
+      try { db.exec('ALTER TABLE users ADD COLUMN url_hash TEXT'); } catch {}
+
+      // Populate uuid for all existing trips
+      const trips = db.prepare('SELECT id FROM trips WHERE uuid IS NULL').all() as { id: number }[];
+      const updateTrip = db.prepare('UPDATE trips SET uuid = ? WHERE id = ?');
+      for (const trip of trips) updateTrip.run(uuidv4(), trip.id);
+
+      // Populate url_hash for all existing users
+      const users = db.prepare('SELECT id FROM users WHERE url_hash IS NULL').all() as { id: number }[];
+      const updateUser = db.prepare('UPDATE users SET url_hash = ? WHERE id = ?');
+      for (const user of users) updateUser.run(generateUrlHash(user.id), user.id);
+
+      try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_trips_uuid ON trips(uuid)'); } catch {}
+      try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_url_hash ON users(url_hash)'); } catch {}
+    },
+    () => {
+      // Convert trip UUIDs from full UUIDs to 8-char hex hashes (like user url_hash)
+      const trips = db.prepare('SELECT id FROM trips').all() as { id: number }[];
+      const updateTrip = db.prepare('UPDATE trips SET uuid = ? WHERE id = ?');
+      for (const trip of trips) {
+        updateTrip.run(crypto.createHash('sha256').update('trek-trip-' + trip.id).digest('hex').slice(0, 8), trip.id);
+      }
+    },
+    () => {
+      // Fix records where trip_id was stored as a UUID text string instead of the numeric integer.
+      // This happened because TripPlannerPage started using tripUuid (8-char hex hash) as the URL
+      // parameter, which was passed directly to API routes before resolveTrip was applied in middleware.
+      // SQLite stores non-numeric strings as TEXT even in INTEGER affinity columns, so these need fixing.
+      const tables = [
+        'places', 'packing_items', 'packing_bags', 'reservations', 'day_accommodations',
+        'share_tokens', 'collab_notes', 'collab_messages', 'collab_polls', 'days',
+        'day_notes', 'budget_items',
+      ];
+      for (const table of tables) {
+        try {
+          db.exec(`
+            UPDATE ${table}
+            SET trip_id = (SELECT id FROM trips WHERE uuid = CAST(trip_id AS TEXT))
+            WHERE typeof(trip_id) = 'text'
+              AND length(CAST(trip_id AS TEXT)) = 8
+              AND EXISTS (SELECT 1 FROM trips WHERE uuid = CAST(trip_id AS TEXT))
+          `);
+        } catch {
+          // Table may not exist (optional addon tables) — skip silently
+        }
+      }
     },
   ];
 

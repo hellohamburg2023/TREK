@@ -133,12 +133,20 @@ export default function PlaceFormModal({
         name: prefillCoords.name || '',
         address: prefillCoords.address || '',
       })
-      setDayTimeEntries([])
+      setDayTimeEntries(
+        days.length > 0
+          ? [{ assignment_id: null, day_id: selectedDayId ? String(selectedDayId) : '', place_time: '', end_time: '' }]
+          : []
+      )
       setDeletedAssignmentIds([])
     } else {
-      // New place: start with empty day_id so user chooses explicitly
+      // New place: start with one empty entry so user can assign to a day
       setForm({ ...DEFAULT_FORM })
-      setDayTimeEntries([])
+      setDayTimeEntries(
+        days.length > 0
+          ? [{ assignment_id: null, day_id: selectedDayId ? String(selectedDayId) : '', place_time: '', end_time: '' }]
+          : []
+      )
       setDeletedAssignmentIds([])
     }
     setPendingFiles([])
@@ -213,8 +221,8 @@ export default function PlaceFormModal({
     }
   }
 
-  const hasTimeError = !place && form.place_time && form.end_time && form.place_time.length >= 5 && form.end_time.length >= 5 && form.end_time <= form.place_time
-  const editTimeError = place && !form.add_to_all_days && dayTimeEntries.some(
+  const hasTimeError = form.add_to_all_days && form.place_time && form.end_time && form.place_time.length >= 5 && form.end_time.length >= 5 && form.end_time <= form.place_time
+  const editTimeError = !form.add_to_all_days && dayTimeEntries.some(
     e => e.place_time && e.end_time && e.place_time.length >= 5 && e.end_time.length >= 5 && e.end_time <= e.place_time
   )
 
@@ -232,8 +240,8 @@ export default function PlaceFormModal({
         lng: form.lng || null,
         category_id: form.category_id || null,
         _pendingFiles: pendingFiles.length > 0 ? pendingFiles : undefined,
-        _dayTimeEntries: place && !form.add_to_all_days ? dayTimeEntries : undefined,
-        _deletedAssignmentIds: place && !form.add_to_all_days ? deletedAssignmentIds : undefined,
+        _dayTimeEntries: !form.add_to_all_days ? dayTimeEntries : undefined,
+        _deletedAssignmentIds: !form.add_to_all_days ? deletedAssignmentIds : undefined,
       })
       onClose()
     } catch (err: unknown) {
@@ -419,8 +427,8 @@ export default function PlaceFormModal({
           </div>
         )}
 
-        {/* Edit mode: multi-day time list */}
-        {place && !form.add_to_all_days ? (
+        {/* Multi-day time list (both add and edit mode) */}
+        {!form.add_to_all_days && (!!place || days.length > 0) ? (
           <div className="space-y-1.5">
             {dayTimeEntries.map((entry, idx) => {
               const entryTimeError = entry.place_time && entry.end_time && entry.place_time.length >= 5 && entry.end_time.length >= 5 && entry.end_time <= entry.place_time
@@ -429,7 +437,7 @@ export default function PlaceFormModal({
                 <div key={idx} className="space-y-1">
                   <div className="flex items-center gap-2">
                     {/* Day selector */}
-                    <div className="w-[38%] shrink-0 min-w-0">
+                    <div className="w-[28%] shrink-0 min-w-0">
                       {idx === 0 && <label className="block text-xs font-medium text-gray-500 mb-1">{t('reservations.day')}</label>}
                       <CustomSelect
                         value={entry.day_id}
@@ -465,20 +473,18 @@ export default function PlaceFormModal({
                         onChange={v => setDayTimeEntries(prev => prev.map((e, i) => i === idx ? { ...e, end_time: v } : e))}
                       />
                     </div>
-                    {/* Copy time to all other entries */}
-                    {dayTimeEntries.length > 1 && (entry.place_time || entry.end_time) && (
+                    {/* Copy time to all other entries – always rendered for consistent column width */}
+                    {dayTimeEntries.length > 1 ? (
                       <button
                         type="button"
                         title={t('places.copyTimeToAll')}
                         onClick={() => setDayTimeEntries(prev => prev.map((e, i) => i === idx ? e : { ...e, place_time: entry.place_time, end_time: entry.end_time }))}
-                        className={`p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors shrink-0${idx === 0 ? ' self-end mb-0.5' : ''}`}
+                        className={`p-1.5 rounded-lg transition-colors shrink-0${idx === 0 ? ' self-end mb-0.5' : ''} ${(entry.place_time || entry.end_time) ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-100' : 'invisible pointer-events-none'}`}
                       >
                         <Copy size={14} />
                       </button>
-                    )}
-                    {/* Spacer when no copy button to keep alignment */}
-                    {!(dayTimeEntries.length > 1 && (entry.place_time || entry.end_time)) && (
-                      <div className={`w-[30px] shrink-0${idx === 0 ? ' self-end mb-0.5' : ''}`} />
+                    ) : (
+                      <div className={`w-[26px] shrink-0${idx === 0 ? ' self-end mb-0.5' : ''}`} />
                     )}
                     {/* Delete entry */}
                     <button

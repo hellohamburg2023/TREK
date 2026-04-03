@@ -10,7 +10,7 @@ import type { Trip, Place, TripFile } from '../types'
 
 export default function FilesPage(): React.ReactElement {
   const { t } = useTranslation()
-  const { id: tripId } = useParams<{ id: string }>()
+  const { userHash, tripUuid: tripId } = useParams<{ userHash: string; tripUuid: string }>()
   const navigate = useNavigate()
   const tripStore = useTripStore()
 
@@ -62,7 +62,7 @@ export default function FilesPage(): React.ReactElement {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Navbar tripTitle={trip?.name} tripId={tripId} showBack onBack={() => navigate(`/trips/${tripId}`)} />
+      <Navbar tripTitle={trip?.name} tripId={tripId} showBack onBack={() => navigate(`/trips/${userHash}/${tripId}`)} />
 
       <div style={{ paddingTop: 'var(--nav-h)' }}>
         <div className="max-w-5xl mx-auto px-4 py-6">

@@ -32,7 +32,7 @@ import { usePlaceSelection } from '../hooks/usePlaceSelection'
 import type { Accommodation, TripMember, Day, Place, Reservation } from '../types'
 
 export default function TripPlannerPage(): React.ReactElement | null {
-  const { id: tripId } = useParams<{ id: string }>()
+  const { tripUuid: tripId } = useParams<{ userHash: string; tripUuid: string }>()
   const navigate = useNavigate()
   const toast = useToast()
   const { t, language } = useTranslation()
@@ -213,7 +213,14 @@ export default function TripPlannerPage(): React.ReactElement | null {
           if (!entry.day_id) continue
           const entryDayId = Number(entry.day_id)
           if (entry.assignment_id) {
-            // Update existing assignment time
+            // Find the original day for this assignment to detect if the day was changed
+            const origDayId = Object.entries(assignments).find(([, list]) =>
+              list.some(a => a.id === entry.assignment_id)
+            )?.[0]
+            if (origDayId && origDayId !== entry.day_id) {
+              // Day changed: move the assignment to the new day, then update time
+              await tripStore.moveAssignment(tripId, entry.assignment_id, Number(origDayId), entryDayId)
+            }
             await assignmentsApi.updateTime(tripId, entry.assignment_id, {
               place_time: entry.place_time || null,
               end_time: entry.end_time || null,
@@ -281,6 +288,22 @@ export default function TripPlannerPage(): React.ReactElement | null {
               await assignmentsApi.updateTime(tripId, assignment.id, { place_time: place_time || null, end_time: end_time || null })
             }
           }
+          await tripStore.refreshDays(tripId)
+        } else if (dayTimeEntries?.length) {
+          // Multi-day entries: assign new place to each specific day
+          for (const entry of dayTimeEntries) {
+            if (!entry.day_id) continue
+            const entryDayId = Number(entry.day_id)
+            const assignment = await tripStore.assignPlaceToDay(tripId, entryDayId, place.id)
+            if (assignment?.id && (entry.place_time || entry.end_time)) {
+              await assignmentsApi.updateTime(tripId, assignment.id, {
+                place_time: entry.place_time || null,
+                end_time: entry.end_time || null,
+              })
+            }
+          }
+          const firstValidDay = dayTimeEntries.find(e => e.day_id)
+          if (firstValidDay) tripStore.setSelectedDay(Number(firstValidDay.day_id))
           await tripStore.refreshDays(tripId)
         } else if (selectedModalDayId) {
           const assignment = await tripStore.assignPlaceToDay(tripId, selectedModalDayId, place.id)

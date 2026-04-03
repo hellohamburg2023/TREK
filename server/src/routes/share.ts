@@ -7,6 +7,16 @@ import { loadTagsByPlaceIds } from '../services/queryHelpers';
 
 const router = express.Router();
 
+const TRIP_HASH_RE = /^[0-9a-f]{8}$/i;
+router.param('tripId', (req, _res, next, tripId: string) => {
+  if (TRIP_HASH_RE.test(tripId)) {
+    const row = db.prepare('SELECT id FROM trips WHERE uuid = ?').get(tripId) as { id: number } | undefined;
+    if (!row) { _res.status(404).json({ error: 'Trip not found' }); return; }
+    req.params.tripId = String(row.id);
+  }
+  next();
+});
+
 // List all share links for a trip
 router.get('/trips/:tripId/share-link', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
@@ -176,9 +186,27 @@ router.get('/shared/:token', (req: Request, res: Response) => {
     }
 
     // Reservations + accommodations — only if bookings are shared
-    const reservations = permissions.share_bookings
-      ? db.prepare('SELECT * FROM reservations WHERE trip_id = ? ORDER BY reservation_time ASC').all(tripId)
-      : [];
+    let reservations: any[] = [];
+    if (permissions.share_bookings) {
+      const rawReservations = db.prepare(`
+        SELECT r.*, end_day.date as accommodation_end_date
+        FROM reservations r
+        LEFT JOIN day_accommodations da ON r.accommodation_id = da.id
+        LEFT JOIN days end_day ON da.end_day_id = end_day.id
+        WHERE r.trip_id = ? ORDER BY r.reservation_time ASC
+      `).all(tripId) as any[];
+      const resIds = rawReservations.map((r: any) => r.id);
+      let filesByReservation: Record<number, any[]> = {};
+      if (resIds.length > 0) {
+        const ph = resIds.map(() => '?').join(',');
+        const files = db.prepare(`SELECT id, reservation_id, filename, original_name, file_size, mime_type, description FROM trip_files WHERE reservation_id IN (${ph})`).all(...resIds) as any[];
+        for (const f of files) {
+          if (!filesByReservation[f.reservation_id]) filesByReservation[f.reservation_id] = [];
+          filesByReservation[f.reservation_id].push({ ...f, url: `/uploads/files/${f.filename}` });
+        }
+      }
+      reservations = rawReservations.map((r: any) => ({ ...r, files: filesByReservation[r.id] || [] }));
+    }
     const accommodations = permissions.share_bookings
       ? db.prepare(`
           SELECT a.*, p.name as place_name, p.address as place_address, p.lat as place_lat, p.lng as place_lng
@@ -208,10 +236,26 @@ router.get('/shared/:token', (req: Request, res: Response) => {
       kosten = { expenses: kostenExpenses, shares: kostenShares, users: kostenUsers };
     }
 
-    // Collab chat
-    const collab = permissions.share_collab
-      ? db.prepare('SELECT m.*, u.username, u.avatar FROM collab_messages m JOIN users u ON m.user_id = u.id WHERE m.trip_id = ? ORDER BY m.created_at ASC').all(tripId)
-      : [];
+    // Collab chat + notes + polls
+    let collab: any = { messages: [], notes: [], polls: [] };
+    if (permissions.share_collab) {
+      const messages = db.prepare('SELECT m.*, u.username, u.avatar FROM collab_messages m JOIN users u ON m.user_id = u.id WHERE m.trip_id = ? AND (m.deleted IS NULL OR m.deleted = 0) ORDER BY m.created_at ASC').all(tripId);
+      const notes = db.prepare('SELECT n.*, u.username, u.avatar FROM collab_notes n JOIN users u ON n.user_id = u.id WHERE n.trip_id = ? ORDER BY n.pinned DESC, n.updated_at DESC').all(tripId);
+      const pollRows = db.prepare('SELECT id FROM collab_polls WHERE trip_id = ? ORDER BY created_at DESC').all(tripId) as { id: number }[];
+      const polls = pollRows.map((row: { id: number }) => {
+        const poll = db.prepare('SELECT p.*, u.username FROM collab_polls p JOIN users u ON p.user_id = u.id WHERE p.id = ?').get(row.id) as any;
+        if (!poll) return null;
+        const options = JSON.parse(poll.options);
+        const votes = db.prepare('SELECT v.option_index, v.user_id, u.username FROM collab_poll_votes v JOIN users u ON v.user_id = u.id WHERE v.poll_id = ?').all(row.id) as any[];
+        const formattedOptions = options.map((label: string | { label: string }, idx: number) => ({
+          label: typeof label === 'string' ? label : (label as any).label || label,
+          voters: votes.filter((v: any) => v.option_index === idx).map((v: any) => v.username),
+          count: votes.filter((v: any) => v.option_index === idx).length,
+        }));
+        return { ...poll, options: formattedOptions, is_closed: !!poll.closed, total_votes: votes.length };
+      }).filter(Boolean);
+      collab = { messages, notes, polls };
+    }
 
     res.json({
       trip, days, assignments, dayNotes, places, categories, permissions,

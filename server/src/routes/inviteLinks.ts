@@ -6,6 +6,16 @@ import { AuthRequest } from '../types';
 
 const router = express.Router();
 
+const TRIP_HASH_RE = /^[0-9a-f]{8}$/i;
+router.param('tripId', (req, _res, next, tripId: string) => {
+  if (TRIP_HASH_RE.test(tripId)) {
+    const row = db.prepare('SELECT id FROM trips WHERE uuid = ?').get(tripId) as { id: number } | undefined;
+    if (!row) { _res.status(404).json({ error: 'Trip not found' }); return; }
+    req.params.tripId = String(row.id);
+  }
+  next();
+});
+
 // ── Owner-facing CRUD ────────────────────────────────────────────────────────
 
 // List all invite links for a trip (owner only)
@@ -89,7 +99,7 @@ router.get('/join/:token', (req: Request, res: Response) => {
   if (!row) return res.status(404).json({ error: 'Invalid or expired invite link' });
 
   const trip = db.prepare(
-    'SELECT id, title, description, start_date, end_date, cover_image FROM trips WHERE id = ?'
+    'SELECT t.id, t.uuid, t.title, t.description, t.start_date, t.end_date, t.cover_image, u.url_hash as owner_url_hash FROM trips t JOIN users u ON u.id = t.user_id WHERE t.id = ?'
   ).get(row.trip_id) as any;
 
   if (!trip) return res.status(404).json({ error: 'Trip not found' });
@@ -105,24 +115,24 @@ router.post('/join/:token', authenticate, (req: Request, res: Response) => {
   const row = db.prepare('SELECT * FROM trip_invite_tokens WHERE token = ?').get(token) as any;
   if (!row) return res.status(404).json({ error: 'Invalid or expired invite link' });
 
-  const trip = db.prepare('SELECT id, user_id FROM trips WHERE id = ?').get(row.trip_id) as any;
+  const trip = db.prepare('SELECT t.id, t.uuid, t.user_id, u.url_hash as owner_url_hash FROM trips t JOIN users u ON u.id = t.user_id WHERE t.id = ?').get(row.trip_id) as any;
   if (!trip) return res.status(404).json({ error: 'Trip not found' });
 
   // Owner is already part of the trip
   if (trip.user_id === authReq.user.id)
-    return res.json({ trip_id: trip.id, already_member: true });
+    return res.json({ trip_id: trip.id, trip_uuid: trip.uuid, owner_url_hash: trip.owner_url_hash, already_member: true });
 
   // Already a member?
   const existing = db.prepare('SELECT id FROM trip_members WHERE trip_id = ? AND user_id = ?')
     .get(trip.id, authReq.user.id);
 
-  if (existing) return res.json({ trip_id: trip.id, already_member: true });
+  if (existing) return res.json({ trip_id: trip.id, trip_uuid: trip.uuid, owner_url_hash: trip.owner_url_hash, already_member: true });
 
   try {
     db.prepare('INSERT INTO trip_members (trip_id, user_id, invited_by) VALUES (?, ?, ?)')
       .run(trip.id, authReq.user.id, row.created_by);
 
-    res.status(201).json({ trip_id: trip.id, already_member: false });
+    res.status(201).json({ trip_id: trip.id, trip_uuid: trip.uuid, owner_url_hash: trip.owner_url_hash, already_member: false });
   } catch (err) {
     console.error('[inviteLinks] Failed to join trip:', err);
     res.status(500).json({ error: 'Failed to join trip' });

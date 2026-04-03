@@ -31,8 +31,8 @@ interface AtlasData {
   stats: AtlasStats
   mostVisited?: AtlasCountry | null
   continents?: Record<string, number>
-  lastTrip?: { id: number; title: string; countryCode?: string } | null
-  nextTrip?: { id: number; title: string; countryCode?: string } | null
+  lastTrip?: { id: number; uuid?: string; owner_url_hash?: string; title: string; countryCode?: string } | null
+  nextTrip?: { id: number; uuid?: string; owner_url_hash?: string; title: string; countryCode?: string } | null
   streak?: number
   firstYear?: number
   tripsThisYear?: number
@@ -40,7 +40,7 @@ interface AtlasData {
 
 interface CountryDetail {
   places: AtlasPlace[]
-  trips: { id: number; title: string }[]
+  trips: { id: number; uuid?: string; owner_url_hash?: string; title: string }[]
   manually_marked?: boolean
 }
 
@@ -510,7 +510,7 @@ export default function AtlasPage(): React.ReactElement {
           <SidebarContent
             data={data} stats={stats} countries={countries} selectedCountry={selectedCountry}
             countryDetail={countryDetail} resolveName={resolveName}
-            onCountryClick={loadCountryDetail} onTripClick={(id) => navigate(`/trips/${id}`)} onUnmarkCountry={handleUnmarkCountry}
+            onCountryClick={loadCountryDetail} onTripClick={(id, uuid, ownerHash) => navigate(`/trips/${ownerHash || id}/${uuid || id}`)} onUnmarkCountry={handleUnmarkCountry}
             bucketList={bucketList} bucketTab={bucketTab} setBucketTab={setBucketTab}
             showBucketAdd={showBucketAdd} setShowBucketAdd={setShowBucketAdd}
             bucketForm={bucketForm} setBucketForm={setBucketForm}
@@ -655,7 +655,7 @@ interface SidebarContentProps {
   countryDetail: CountryDetail | null
   resolveName: (code: string) => string
   onCountryClick: (code: string) => void
-  onTripClick: (id: number) => void
+  onTripClick: (id: number, uuid?: string, ownerHash?: string) => void
   onUnmarkCountry?: (code: string) => void
   bucketList: any[]
   bucketTab: 'stats' | 'bucket'
@@ -792,7 +792,7 @@ function SidebarContent({ data, stats, countries, selectedCountry, countryDetail
       <div className="flex items-center gap-5 px-3 py-4">
         {/* Last trip */}
         {lastTrip && (
-          <button onClick={() => onTripClick(lastTrip.id)} className="flex items-center gap-2.5 text-left transition-opacity hover:opacity-75">
+          <button onClick={() => onTripClick(lastTrip.id, (lastTrip as any).uuid, (lastTrip as any).owner_url_hash)} className="flex items-center gap-2.5 text-left transition-opacity hover:opacity-75">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0" style={{ background: bg(0.06) }}>
               {lastTrip.countryCode ? countryCodeToFlag(lastTrip.countryCode) : <MapPin size={16} style={{ color: tm }} />}
             </div>
@@ -833,7 +833,7 @@ function SidebarContent({ data, stats, countries, selectedCountry, countryDetail
               <p className="text-[10px] mb-1" style={{ color: tf }}>{countryDetail.places.length} {t('atlas.places')} · {countryDetail.trips.length} Trips</p>
               <div className="flex flex-wrap gap-1">
                 {countryDetail.trips.slice(0, 3).map(trip => (
-                  <button key={trip.id} onClick={() => onTripClick(trip.id)}
+                  <button key={trip.id} onClick={() => onTripClick(trip.id, trip.uuid, trip.owner_url_hash)}
                     className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold transition-opacity hover:opacity-75"
                     style={{ background: bg(0.08), color: tp }}>
                     <Briefcase size={9} style={{ color: tm }} />

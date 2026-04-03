@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { v4 as uuid } from 'uuid';
 import fetch from 'node-fetch';
 import { authenticator } from 'otplib';
@@ -276,7 +277,11 @@ router.post('/register', authLimiter, (req: Request, res: Response) => {
       'INSERT INTO users (username, email, password_hash, role, joined_via, invited_by) VALUES (?, ?, ?, ?, ?, ?)'
     ).run(username, email, password_hash, role, joinedVia, invitedBy);
 
-    const user = { id: result.lastInsertRowid, username, email, role, avatar: null, mfa_enabled: false };
+    const newUserId = result.lastInsertRowid;
+    const urlHash = crypto.createHash('sha256').update('trek-user-' + newUserId).digest('hex').slice(0, 8);
+    db.prepare('UPDATE users SET url_hash = ? WHERE id = ?').run(urlHash, newUserId);
+
+    const user = { id: newUserId, username, email, role, avatar: null, mfa_enabled: false, url_hash: urlHash };
     const token = generateToken(user);
 
     // Set default settings for new users based on their browser locale
@@ -325,7 +330,7 @@ router.post('/register', authLimiter, (req: Request, res: Response) => {
       }
     }
 
-    res.status(201).json({ token, user: { ...user, avatar_url: null } });
+    res.status(201).json({ token, user: { ...user, avatar_url: null, url_hash: urlHash } });
   } catch (err: unknown) {
     res.status(500).json({ error: 'Error creating user' });
   }
@@ -371,7 +376,7 @@ router.post('/login', authLimiter, (req: Request, res: Response) => {
 router.get('/me', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const user = db.prepare(
-    'SELECT id, username, email, role, avatar, oidc_issuer, created_at, mfa_enabled FROM users WHERE id = ?'
+    'SELECT id, username, email, role, avatar, oidc_issuer, created_at, mfa_enabled, url_hash FROM users WHERE id = ?'
   ).get(authReq.user.id) as User | undefined;
 
   if (!user) {

@@ -4,6 +4,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
 import fs from 'fs';
+import { db } from './db/database';
 
 const app = express();
 
@@ -102,6 +103,18 @@ app.get('/uploads/:type/:filename', (req: Request, res: Response) => {
 });
 
 // Routes
+const TRIP_HASH_RE = /^[0-9a-f]{8}$/i;
+
+// Resolve trip hash → numeric trip ID for all :tripId params across sub-routes
+app.param('tripId', (req: Request, res: Response, next: NextFunction, tripId: string) => {
+  if (TRIP_HASH_RE.test(tripId)) {
+    const row = db.prepare('SELECT id FROM trips WHERE uuid = ?').get(tripId) as { id: number } | undefined;
+    if (!row) { res.status(404).json({ error: 'Trip not found' }); return; }
+    req.params.tripId = String(row.id);
+  }
+  next();
+});
+
 import authRoutes from './routes/auth';
 import tripsRoutes from './routes/trips';
 import daysRoutes, { accommodationsRouter as accommodationsRoutes } from './routes/days';

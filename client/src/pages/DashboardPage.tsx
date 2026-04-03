@@ -19,6 +19,7 @@ import {
 
 interface DashboardTrip {
   id: number
+  uuid?: string | null
   title: string
   description?: string | null
   start_date?: string | null
@@ -27,6 +28,7 @@ interface DashboardTrip {
   is_archived?: boolean
   is_owner?: boolean
   owner_username?: string
+  owner_url_hash?: string | null
   day_count?: number
   place_count?: number
   [key: string]: string | number | boolean | null | undefined
@@ -785,7 +787,7 @@ export default function DashboardPage(): React.ReactElement {
               onEdit={tr => { setEditingTrip(tr); setShowForm(true) }}
               onDelete={handleDelete}
               onArchive={handleArchive}
-              onClick={tr => navigate(`/trips/${tr.id}`)}
+              onClick={tr => navigate(`/trips/${tr.owner_url_hash || tr.id}/${tr.uuid || tr.id}`)}
             />
           )}
 
@@ -801,7 +803,7 @@ export default function DashboardPage(): React.ReactElement {
                     onEdit={tr => { setEditingTrip(tr); setShowForm(true) }}
                     onDelete={handleDelete}
                     onArchive={handleArchive}
-                    onClick={tr => navigate(`/trips/${tr.id}`)}
+                    onClick={tr => navigate(`/trips/${tr.owner_url_hash || tr.id}/${tr.uuid || tr.id}`)}
                   />
                 ))}
               </div>
@@ -815,7 +817,7 @@ export default function DashboardPage(): React.ReactElement {
                     onEdit={tr => { setEditingTrip(tr); setShowForm(true) }}
                     onDelete={handleDelete}
                     onArchive={handleArchive}
-                    onClick={tr => navigate(`/trips/${tr.id}`)}
+                    onClick={tr => navigate(`/trips/${tr.owner_url_hash || tr.id}/${tr.uuid || tr.id}`)}
                   />
                 ))}
               </div>
@@ -845,7 +847,7 @@ export default function DashboardPage(): React.ReactElement {
                       onEdit={tr => { setEditingTrip(tr); setShowForm(true) }}
                       onUnarchive={handleUnarchive}
                       onDelete={handleDelete}
-                      onClick={tr => navigate(`/trips/${tr.id}`)}
+                      onClick={tr => navigate(`/trips/${tr.owner_url_hash || tr.id}/${tr.uuid || tr.id}`)}
                     />
                   ))}
                 </div>

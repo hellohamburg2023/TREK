@@ -19,12 +19,14 @@ router.get('/', authenticate, (req: Request, res: Response) => {
 
   const reservations = db.prepare(`
     SELECT r.*, d.day_number, p.name as place_name, r.assignment_id,
-      ap.place_id as accommodation_place_id, acc_p.name as accommodation_name
+      ap.place_id as accommodation_place_id, acc_p.name as accommodation_name,
+      end_day.date as accommodation_end_date
     FROM reservations r
     LEFT JOIN days d ON r.day_id = d.id
     LEFT JOIN places p ON r.place_id = p.id
     LEFT JOIN day_accommodations ap ON r.accommodation_id = ap.id
     LEFT JOIN places acc_p ON ap.place_id = acc_p.id
+    LEFT JOIN days end_day ON ap.end_day_id = end_day.id
     WHERE r.trip_id = ?
     ORDER BY r.reservation_time ASC, r.created_at ASC
   `).all(tripId);

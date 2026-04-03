@@ -215,7 +215,11 @@ router.get('/callback', async (req: Request, res: Response) => {
         'INSERT INTO users (username, email, password_hash, role, oidc_sub, oidc_issuer) VALUES (?, ?, ?, ?, ?, ?)'
       ).run(username, email, hash, role, sub, config.issuer);
 
-      user = { id: Number(result.lastInsertRowid), username, email, role } as User;
+      const newUserId = Number(result.lastInsertRowid);
+      const urlHash = crypto.createHash('sha256').update('trek-user-' + newUserId).digest('hex').slice(0, 8);
+      db.prepare('UPDATE users SET url_hash = ? WHERE id = ?').run(urlHash, newUserId);
+
+      user = { id: newUserId, username, email, role, url_hash: urlHash } as User;
 
       // Set default settings based on browser locale
       const localeDefaults = detectLocaleDefaults(req.headers['accept-language']);

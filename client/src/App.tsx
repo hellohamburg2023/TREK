@@ -121,7 +121,7 @@ export default function App() {
           }
         />
         <Route
-          path="/trips/:id"
+          path="/trips/:userHash/:tripUuid"
           element={
             <ProtectedRoute>
               <TripPlannerPage />
@@ -129,7 +129,7 @@ export default function App() {
           }
         />
         <Route
-          path="/trips/:id/files"
+          path="/trips/:userHash/:tripUuid/files"
           element={
             <ProtectedRoute>
               <FilesPage />

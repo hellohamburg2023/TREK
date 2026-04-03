@@ -80,8 +80,8 @@ function ReservationCard({ r, tripId, onEdit, onDelete, files = [], onNavigateTo
   }
 
   const fmtDate = (str) => {
-    const d = new Date(str)
-    return d.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' })
+    const d = new Date(str.includes('T') ? str : str + 'T12:00:00')
+    return d.toLocaleDateString(locale, { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
   }
   const fmtTime = (str) => {
     const d = new Date(str)
@@ -122,14 +122,22 @@ function ReservationCard({ r, tripId, onEdit, onDelete, files = [], onNavigateTo
               {r.reservation_time && (
                 <div style={{ flex: 1, padding: '5px 10px', textAlign: 'center', borderRight: '1px solid var(--border-faint)' }}>
                   <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('reservations.date')}</div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginTop: 1 }}>{fmtDate(r.reservation_time)}</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginTop: 1 }}>
+                    {(() => {
+                      const endPart = r.reservation_end_time?.split('T')[0] || ''
+                      const accEndDate = r.accommodation_end_date || ''
+                      const effectiveEnd = endPart.includes('-') ? endPart : (accEndDate.includes('-') ? accEndDate : '')
+                      const startPart = (r.reservation_time || '').split('T')[0]
+                      return fmtDate(r.reservation_time) + (effectiveEnd && effectiveEnd !== startPart ? ` – ${fmtDate(effectiveEnd)}` : '')
+                    })()}
+                  </div>
                 </div>
               )}
               {r.reservation_time?.includes('T') && (
                 <div style={{ flex: 1, padding: '5px 10px', textAlign: 'center', borderRight: '1px solid var(--border-faint)' }}>
                   <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('reservations.time')}</div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginTop: 1 }}>
-                    {fmtTime(r.reservation_time)}{r.reservation_end_time ? ` – ${r.reservation_end_time}` : ''}
+                    {fmtTime(r.reservation_time)}{r.reservation_end_time?.includes('T') ? ` – ${fmtTime(r.reservation_end_time)}` : (r.reservation_end_time ? ` – ${r.reservation_end_time}` : '')}
                   </div>
                 </div>
               )}

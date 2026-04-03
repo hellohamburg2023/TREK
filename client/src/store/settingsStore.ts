@@ -21,7 +21,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     default_zoom: 10,
     dark_mode: 'auto',
     default_currency: 'USD',
-    language: localStorage.getItem('app_language') || 'en',
+    language: localStorage.getItem('app_language') || 'de',
     temperature_unit: 'fahrenheit',
     time_format: '12h',
     show_place_description: false,

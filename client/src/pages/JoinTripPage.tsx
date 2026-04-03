@@ -22,6 +22,7 @@ export default function JoinTripPage() {
   const [joining, setJoining] = useState(false)
   const [joined, setJoined] = useState(false)
   const [tripId, setTripId] = useState<number | null>(null)
+  const [tripNav, setTripNav] = useState<{ uuid: string; ownerHash: string } | null>(null)
 
   useEffect(() => {
     if (!token) return
@@ -36,8 +37,9 @@ export default function JoinTripPage() {
     try {
       const d = await inviteApi.joinTrip(token)
       setTripId(d.trip_id)
+      setTripNav({ uuid: d.trip_uuid, ownerHash: d.owner_url_hash })
       setJoined(true)
-      setTimeout(() => navigate(`/trips/${d.trip_id}`), 1800)
+      setTimeout(() => navigate(`/trips/${d.owner_url_hash}/${d.trip_uuid}`), 1800)
     } catch {
       setJoining(false)
     }

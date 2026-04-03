@@ -17,6 +17,7 @@ function createTables(db: Database.Database): void {
       last_login DATETIME,
       mfa_enabled INTEGER DEFAULT 0,
       mfa_secret TEXT,
+      url_hash TEXT UNIQUE,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -31,6 +32,7 @@ function createTables(db: Database.Database): void {
 
     CREATE TABLE IF NOT EXISTS trips (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      uuid TEXT UNIQUE,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       title TEXT NOT NULL,
       description TEXT,

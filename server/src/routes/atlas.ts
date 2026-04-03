@@ -88,8 +88,9 @@ router.get('/stats', (req: Request, res: Response) => {
   const userId = authReq.user.id;
 
   const trips = db.prepare(`
-    SELECT DISTINCT t.* FROM trips t
+    SELECT DISTINCT t.*, u.url_hash as owner_url_hash FROM trips t
     LEFT JOIN trip_members m ON m.trip_id = t.id AND m.user_id = ?
+    JOIN users u ON u.id = t.user_id
     WHERE t.user_id = ? OR m.user_id = ?
     ORDER BY t.start_date DESC
   `).all(userId, userId, userId) as Trip[];
@@ -174,7 +175,7 @@ router.get('/stats', (req: Request, res: Response) => {
 
   const now = new Date().toISOString().split('T')[0];
   const pastTrips = trips.filter(t => t.end_date && t.end_date <= now).sort((a, b) => b.end_date.localeCompare(a.end_date));
-  const lastTrip: { id: number; title: string; start_date?: string | null; end_date?: string | null; countryCode?: string } | null = pastTrips[0] ? { id: pastTrips[0].id, title: pastTrips[0].title, start_date: pastTrips[0].start_date, end_date: pastTrips[0].end_date } : null;
+  const lastTrip: { id: number; uuid?: string | null; owner_url_hash?: string | null; title: string; start_date?: string | null; end_date?: string | null; countryCode?: string } | null = pastTrips[0] ? { id: pastTrips[0].id, uuid: (pastTrips[0] as any).uuid, owner_url_hash: (pastTrips[0] as any).owner_url_hash, title: pastTrips[0].title, start_date: pastTrips[0].start_date, end_date: pastTrips[0].end_date } : null;
   if (lastTrip) {
     const lastTripPlaces = places.filter(p => p.trip_id === lastTrip.id);
     for (const p of lastTripPlaces) {
@@ -185,7 +186,7 @@ router.get('/stats', (req: Request, res: Response) => {
   }
 
   const futureTrips = trips.filter(t => t.start_date && t.start_date > now).sort((a, b) => a.start_date.localeCompare(b.start_date));
-  const nextTrip: { id: number; title: string; start_date?: string | null; daysUntil?: number } | null = futureTrips[0] ? { id: futureTrips[0].id, title: futureTrips[0].title, start_date: futureTrips[0].start_date } : null;
+  const nextTrip: { id: number; uuid?: string | null; owner_url_hash?: string | null; title: string; start_date?: string | null; daysUntil?: number } | null = futureTrips[0] ? { id: futureTrips[0].id, uuid: (futureTrips[0] as any).uuid, owner_url_hash: (futureTrips[0] as any).owner_url_hash, title: futureTrips[0].title, start_date: futureTrips[0].start_date } : null;
   if (nextTrip) {
     const diff = Math.ceil((new Date(nextTrip.start_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
     nextTrip.daysUntil = Math.max(0, diff);
@@ -225,8 +226,9 @@ router.get('/country/:code', (req: Request, res: Response) => {
   const code = req.params.code.toUpperCase();
 
   const trips = db.prepare(`
-    SELECT DISTINCT t.* FROM trips t
+    SELECT DISTINCT t.*, u.url_hash as owner_url_hash FROM trips t
     LEFT JOIN trip_members m ON m.trip_id = t.id AND m.user_id = ?
+    JOIN users u ON u.id = t.user_id
     WHERE t.user_id = ? OR m.user_id = ?
   `).all(userId, userId, userId) as Trip[];
 
@@ -248,7 +250,7 @@ router.get('/country/:code', (req: Request, res: Response) => {
     }
   }
 
-  const matchingTrips = trips.filter(t => matchingTripIds.has(t.id)).map(t => ({ id: t.id, title: t.title, start_date: t.start_date, end_date: t.end_date }));
+  const matchingTrips = trips.filter(t => matchingTripIds.has(t.id)).map(t => ({ id: t.id, uuid: (t as any).uuid, owner_url_hash: (t as any).owner_url_hash, title: t.title, start_date: t.start_date, end_date: t.end_date }));
 
   const isManuallyMarked = !!(db.prepare('SELECT 1 FROM visited_countries WHERE user_id = ? AND country_code = ?').get(userId, code));
   res.json({ places: matchingPlaces, trips: matchingTrips, manually_marked: isManuallyMarked });

@@ -116,16 +116,28 @@ interface TripAccess {
   user_id: number;
 }
 
+const TRIP_HASH_RE = /^[0-9a-f]{8}$/i;
+
+function resolveTrip(tripId: number | string): number | string {
+  if (typeof tripId === 'string' && TRIP_HASH_RE.test(tripId)) {
+    const row = _db!.prepare('SELECT id FROM trips WHERE uuid = ?').get(tripId) as { id: number } | undefined;
+    return row ? row.id : tripId;
+  }
+  return tripId;
+}
+
 function canAccessTrip(tripId: number | string, userId: number): TripAccess | undefined {
+  const id = resolveTrip(tripId);
   return _db!.prepare(`
     SELECT t.id, t.user_id FROM trips t
     LEFT JOIN trip_members m ON m.trip_id = t.id AND m.user_id = ?
     WHERE t.id = ? AND (t.user_id = ? OR m.user_id IS NOT NULL)
-  `).get(userId, tripId, userId) as TripAccess | undefined;
+  `).get(userId, id, userId) as TripAccess | undefined;
 }
 
 function isOwner(tripId: number | string, userId: number): boolean {
-  return !!_db!.prepare('SELECT id FROM trips WHERE id = ? AND user_id = ?').get(tripId, userId);
+  const id = resolveTrip(tripId);
+  return !!_db!.prepare('SELECT id FROM trips WHERE id = ? AND user_id = ?').get(id, userId);
 }
 
 export { db, closeDb, reinitialize, getPlaceWithTags, canAccessTrip, isOwner };

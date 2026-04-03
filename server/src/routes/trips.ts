@@ -1,8 +1,9 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 import { db, canAccessTrip, isOwner } from '../db/database';
 import { authenticate, demoUploadBlock } from '../middleware/auth';
 import { broadcast } from '../websocket';
@@ -45,6 +46,7 @@ const TRIP_SELECT = `
     (SELECT COUNT(*) FROM places p WHERE p.trip_id = t.id) as place_count,
     CASE WHEN t.user_id = :userId THEN 1 ELSE 0 END as is_owner,
     u.username as owner_username,
+    u.url_hash as owner_url_hash,
     (SELECT COUNT(*) FROM trip_members tm WHERE tm.trip_id = t.id) as shared_count
   FROM trips t
   JOIN users u ON u.id = t.user_id
@@ -120,6 +122,18 @@ function generateDays(tripId: number | bigint | string, startDate: string | null
   }
 }
 
+const TRIP_HASH_RE = /^[0-9a-f]{8}$/i;
+
+// Resolve trip hash → numeric trip ID
+router.param('id', (req: Request, _res: Response, next: NextFunction, id: string) => {
+  if (TRIP_HASH_RE.test(id)) {
+    const row = db.prepare('SELECT id FROM trips WHERE uuid = ?').get(id) as { id: number } | undefined;
+    if (!row) { _res.status(404).json({ error: 'Trip not found' }); return; }
+    req.params.id = String(row.id);
+  }
+  next();
+});
+
 router.get('/', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const archived = req.query.archived === '1' ? 1 : 0;
@@ -140,10 +154,11 @@ router.post('/', authenticate, (req: Request, res: Response) => {
   if (start_date && end_date && new Date(end_date) < new Date(start_date))
     return res.status(400).json({ error: 'End date must be after start date' });
 
+  const tripHash = crypto.randomBytes(4).toString('hex');
   const result = db.prepare(`
-    INSERT INTO trips (user_id, title, description, start_date, end_date, currency)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(authReq.user.id, title, description || null, start_date || null, end_date || null, currency || 'EUR');
+    INSERT INTO trips (uuid, user_id, title, description, start_date, end_date, currency)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(tripHash, authReq.user.id, title, description || null, start_date || null, end_date || null, currency || 'EUR');
 
   const tripId = result.lastInsertRowid;
   generateDays(tripId, start_date, end_date);

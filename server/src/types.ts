@@ -15,12 +15,14 @@ export interface User {
   last_login?: string | null;
   mfa_enabled?: number | boolean;
   mfa_secret?: string | null;
+  url_hash?: string | null;
   created_at?: string;
   updated_at?: string;
 }
 
 export interface Trip {
   id: number;
+  uuid?: string | null;
   user_id: number;
   title: string;
   description?: string | null;

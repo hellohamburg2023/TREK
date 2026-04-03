@@ -7,6 +7,7 @@ export interface User {
   role: 'admin' | 'user'
   avatar_url: string | null
   maps_api_key: string | null
+  url_hash: string | null
   created_at: string
   /** Present after load; true when TOTP MFA is enabled for password login */
   mfa_enabled?: boolean
@@ -14,6 +15,7 @@ export interface User {
 
 export interface Trip {
   id: number
+  uuid: string
   name: string
   description: string | null
   start_date: string
@@ -21,6 +23,7 @@ export interface Trip {
   cover_url: string | null
   is_archived: boolean
   owner_id: number
+  owner_url_hash: string | null
   currency?: string
   created_at: string
   updated_at: string
@@ -205,6 +208,8 @@ export interface Reservation {
   notes: string | null
   url: string | null
   accommodation_id?: number | null
+  accommodation_name?: string | null
+  accommodation_end_date?: string | null
   metadata?: Record<string, string> | null
   day_plan_position?: number | null
   created_at: string
@@ -215,6 +220,7 @@ export interface TripFile {
   trip_id: number
   place_id?: number | null
   reservation_id?: number | null
+  linked_reservation_ids?: number[]
   note_id?: number | null
   uploaded_by?: number | null
   uploaded_by_name?: string | null
